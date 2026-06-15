@@ -35,6 +35,12 @@ export default {
         }
 
         if (data === "gym_checkin") {
+  await saveGymVisit(env, cq.from.id);
+
+  await editMessage(env, chatId, msgId,
+    "✅ Красавчик, ты в зале!\n\nПосещение сохранено в базу.",
+    navMenu("trainings")
+  );
           await editMessage(env, chatId, msgId,
             "✅ Красавчик, ты в зале!\n\nПозже это будет сохраняться в календарь посещений.",
             navMenu("trainings")
@@ -272,5 +278,18 @@ async function answerCallback(env, callbackId) {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ callback_query_id: callbackId }),
+  });
+}
+async function saveGymVisit(env, userId) {
+  await fetch(env.SUPABASE_URL + "/rest/v1/gym_visits", {
+    method: "POST",
+    headers: {
+      apikey: env.SUPABASE_KEY,
+      Authorization: "Bearer " + env.SUPABASE_KEY,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      telegram_id: userId,
+    }),
   });
 }
