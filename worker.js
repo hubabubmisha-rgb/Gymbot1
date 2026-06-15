@@ -1,3 +1,4 @@
+// test deploy
 export default {
   async fetch(request, env) {
     if (request.method === "GET") {
