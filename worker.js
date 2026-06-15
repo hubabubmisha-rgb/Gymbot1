@@ -1,7 +1,7 @@
 export default {
   async fetch(request, env) {
     if (request.method === "GET") {
-      return new Response("Gym Bot v0.2 работает 🚀");
+      return new Response("Gym Bot v0.3 работает 🚀");
     }
 
     if (request.method === "POST") {
@@ -11,76 +11,102 @@ export default {
         const chatId = update.message.chat.id;
         const text = update.message.text || "";
 
-        if (text === "/start" || text === "меню") {
-          await sendMessage(env, chatId, "🏋️ Gym Bot v0.2\n\nГлавное меню:", mainMenu());
+        if (text === "/start" || text.toLowerCase() === "меню") {
+          await sendMessage(env, chatId, "🏋️ Gym Bot v0.3\n\nГлавное меню:", mainMenu());
         } else {
-          await sendMessage(env, chatId, "Я пока понимаю только кнопки 😄\n\nГлавное меню:", mainMenu());
+          await sendMessage(env, chatId, "Пока управляй ботом через кнопки 👇", mainMenu());
         }
       }
 
       if (update.callback_query) {
         const cq = update.callback_query;
         const chatId = cq.message.chat.id;
+        const msgId = cq.message.message_id;
         const data = cq.data;
 
         await answerCallback(env, cq.id);
 
         if (data === "menu") {
-          await sendMessage(env, chatId, "🏋️ Главное меню:", mainMenu());
+          await editMessage(env, chatId, msgId, "🏋️ Главное меню:", mainMenu());
         }
 
         if (data === "trainings") {
-          await sendMessage(env, chatId, "🏋️ Тренировки\n\nВыбери действие:", trainingsMenu());
+          await editMessage(env, chatId, msgId, "🏋️ Тренировки\n\nВыбери действие:", trainingsMenu());
         }
 
         if (data === "gym_checkin") {
-          await sendMessage(env, chatId, "✅ Красавчик, ты в зале!\n\nПозже это будет сохраняться в календарь посещений.");
+          await editMessage(env, chatId, msgId,
+            "✅ Красавчик, ты в зале!\n\nПозже это будет сохраняться в календарь посещений.",
+            navMenu("trainings")
+          );
         }
 
         if (data === "free_workout") {
-          await sendMessage(env, chatId, "🆓 Свободная тренировка\n\nВыбери группу мышц:", muscleGroupsMenu());
+          await editMessage(env, chatId, msgId, "🆓 Свободная тренировка\n\nВыбери группу мышц:", muscleGroupsMenu());
         }
 
         if (data === "log_result") {
-          await sendMessage(env, chatId, "✍️ Запись результата\n\nПока выбери упражнение через свободную тренировку.\n\nФормат потом будет такой:\n100 кг × 5");
+          await editMessage(env, chatId, msgId,
+            "✍️ Записать результат\n\nПока запись результата добавим в следующей версии.\n\nФормат будет такой:\n100 кг × 5",
+            navMenu("trainings")
+          );
         }
 
         if (data === "programs") {
-          await sendMessage(env, chatId, "📋 Программы тренировок\n\nСкоро добавим:\n• Фуллбади\n• Сплиты\n• Свои программы\n• Тренировку по программе", backMenu());
+          await editMessage(env, chatId, msgId,
+            "📋 Программы тренировок\n\nСкоро тут будут:\n• Фуллбади\n• Сплиты\n• Программы с упором\n• Свои программы\n• Тренировка по программе",
+            navMenu("menu")
+          );
         }
 
         if (data === "analytics") {
-          await sendMessage(env, chatId, "📊 Аналитика\n\nСкоро тут будут:\n• посещения\n• тоннаж\n• любимое упражнение\n• подходы по группам мышц\n• графики", backMenu());
+          await editMessage(env, chatId, msgId,
+            "📊 Аналитика\n\nСкоро тут будут:\n• календарь посещений\n• графики\n• тоннаж\n• любимое упражнение\n• подходы по группам мышц",
+            navMenu("menu")
+          );
         }
 
         if (data === "friends") {
-          await sendMessage(env, chatId, "👥 Друзья\n\nСкоро добавим:\n• добавить друга по ID\n• разрешение смотреть тренировки\n• сообщение друзьям", backMenu());
+          await editMessage(env, chatId, msgId,
+            "👥 Друзья\n\nСкоро тут будут:\n• добавить друга по ID\n• разрешить смотреть тренировки\n• сообщение друзьям",
+            navMenu("menu")
+          );
         }
 
         if (data === "profile") {
-          await sendMessage(env, chatId, "👤 Профиль\n\nСкоро тут будут:\n• рост\n• вес\n• возраст\n• пол\n• уровень\n• приватность", backMenu());
+          await editMessage(env, chatId, msgId,
+            "👤 Профиль\n\nСкоро тут будут:\n• рост\n• вес\n• возраст\n• пол\n• уровень\n• приватность",
+            navMenu("menu")
+          );
         }
 
         if (data === "food_supps") {
-          await sendMessage(env, chatId, "🍽 Питание/БАДы\n\nВыбери раздел:", foodSuppsMenu());
+          await editMessage(env, chatId, msgId, "🍽 Питание/БАДы\n\nВыбери раздел:", foodSuppsMenu());
         }
 
         if (data === "food") {
-          await sendMessage(env, chatId, nutritionText(), backMenu());
+          await editMessage(env, chatId, msgId, nutritionText(), navMenu("food_supps"));
         }
 
         if (data === "supps") {
-          await sendMessage(env, chatId, "💊 Пей креатин, чувак. Пока на этом всё 💪", backMenu());
+          await editMessage(env, chatId, msgId, "💊 Пей креатин, чувак. Пока на этом всё 💪", navMenu("food_supps"));
         }
 
         if (data.startsWith("group:")) {
           const group = data.replace("group:", "");
-          await sendMessage(env, chatId, "Выбери упражнение:", exercisesMenu(group));
+          await editMessage(env, chatId, msgId, groupTitle(group) + "\n\nВыбери упражнение:", exercisesMenu(group));
         }
 
         if (data.startsWith("ex:")) {
           const ex = data.replace("ex:", "");
-          await sendMessage(env, chatId, exerciseText(ex), exerciseMenu());
+          await editMessage(env, chatId, msgId, exerciseText(ex), exerciseMenu());
+        }
+
+        if (data === "timer_90") {
+          await editMessage(env, chatId, msgId,
+            "⏱ Таймер 90 секунд\n\nПока таймер будет текстовый. В следующей версии сделаем нормальное уведомление.",
+            navMenu("free_workout")
+          );
         }
       }
 
@@ -111,7 +137,7 @@ function trainingsMenu() {
       [{ text: "🆓 Свободная тренировка", callback_data: "free_workout" }],
       [{ text: "✍️ Записать результат", callback_data: "log_result" }],
       [{ text: "📋 Тренировка по программе", callback_data: "programs" }],
-      [{ text: "⬅️ В меню", callback_data: "menu" }],
+      [{ text: "🏠 В меню", callback_data: "menu" }],
     ],
   };
 }
@@ -126,7 +152,7 @@ function muscleGroupsMenu() {
       [{ text: "💪 Руки", callback_data: "group:arms" }],
       [{ text: "🔥 Пресс", callback_data: "group:abs" }],
       [{ text: "🚴 Кардио", callback_data: "group:cardio" }],
-      [{ text: "⬅️ В меню", callback_data: "menu" }],
+      [{ text: "⬅️ Назад", callback_data: "trainings" }, { text: "🏠 В меню", callback_data: "menu" }],
     ],
   };
 }
@@ -144,17 +170,29 @@ function exercisesMenu(group) {
 
   const list = data[group] || [];
   const buttons = list.map((x) => [{ text: x, callback_data: "ex:" + x }]);
-  buttons.push([{ text: "⬅️ Назад", callback_data: "free_workout" }]);
+  buttons.push([{ text: "⬅️ Назад", callback_data: "free_workout" }, { text: "🏠 В меню", callback_data: "menu" }]);
   return { inline_keyboard: buttons };
+}
+
+function groupTitle(group) {
+  const titles = {
+    chest: "💥 Грудь",
+    back: "🔙 Спина",
+    legs: "🦵 Ноги",
+    shoulders: "🏋️ Плечи",
+    arms: "💪 Руки",
+    abs: "🔥 Пресс",
+    cardio: "🚴 Кардио",
+  };
+  return titles[group] || "Группа";
 }
 
 function exerciseText(name) {
   return "🏋️ " + name + "\n\n" +
-    "Описание и фото добавим в следующей версии.\n\n" +
-    "Позже тут будет:\n" +
-    "• картинка выполнения\n" +
-    "• мышцы\n" +
-    "• техника\n" +
+    "Скоро тут будет:\n" +
+    "• фото выполнения\n" +
+    "• описание техники\n" +
+    "• основные мышцы\n" +
     "• прошлый результат\n" +
     "• запись нового результата";
 }
@@ -165,7 +203,7 @@ function exerciseMenu() {
       [{ text: "✍️ Записать результат", callback_data: "log_result" }],
       [{ text: "⏱ Таймер 90 сек", callback_data: "timer_90" }],
       [{ text: "📊 История", callback_data: "analytics" }],
-      [{ text: "⬅️ В меню", callback_data: "menu" }],
+      [{ text: "⬅️ Назад", callback_data: "free_workout" }, { text: "🏠 В меню", callback_data: "menu" }],
     ],
   };
 }
@@ -175,15 +213,15 @@ function foodSuppsMenu() {
     inline_keyboard: [
       [{ text: "🍽 Питание", callback_data: "food" }],
       [{ text: "💊 БАДы", callback_data: "supps" }],
-      [{ text: "⬅️ В меню", callback_data: "menu" }],
+      [{ text: "⬅️ Назад", callback_data: "menu" }, { text: "🏠 В меню", callback_data: "menu" }],
     ],
   };
 }
 
-function backMenu() {
+function navMenu(backTo) {
   return {
     inline_keyboard: [
-      [{ text: "⬅️ В меню", callback_data: "menu" }],
+      [{ text: "⬅️ Назад", callback_data: backTo }, { text: "🏠 В меню", callback_data: "menu" }],
     ],
   };
 }
@@ -192,7 +230,7 @@ function nutritionText() {
   return "🍽 ПИТАНИЕ — без занудства\n\n" +
     "Слушай сюда, чемпион 🦾\n\n" +
     "🥩 Белок — это святое.\n" +
-    "2+ грамма белка на кг твоего веса в сутки. Без него ты не растёшь, а просто потеешь в зале за компанию.\n\n" +
+    "2+ грамма белка на кг твоего веса в сутки.\n\n" +
     "🥑 Жиры — нужны, но без фанатизма.\n" +
     "Около 1–1.2 г на кг веса.\n\n" +
     "🍚 Углеводы — твой рубильник «сушка / масса».\n" +
@@ -204,10 +242,25 @@ function nutritionText() {
 
 async function sendMessage(env, chatId, text, keyboard) {
   const payload = { chat_id: chatId, text };
-
   if (keyboard) payload.reply_markup = keyboard;
 
   await fetch("https://api.telegram.org/bot" + env.BOT_TOKEN + "/sendMessage", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+async function editMessage(env, chatId, msgId, text, keyboard) {
+  const payload = {
+    chat_id: chatId,
+    message_id: msgId,
+    text,
+  };
+
+  if (keyboard) payload.reply_markup = keyboard;
+
+  await fetch("https://api.telegram.org/bot" + env.BOT_TOKEN + "/editMessageText", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(payload),
