@@ -35,30 +35,26 @@ export default {
         }
 
         if (data === "gym_checkin") {
+  const res = await fetch(env.SUPABASE_URL + "/rest/v1/gym_visits", {
+    method: "POST",
+    headers: {
+      apikey: env.SUPABASE_KEY,
+      Authorization: "Bearer " + env.SUPABASE_KEY,
+      "Content-Type": "application/json",
+      Prefer: "return=representation"
+    },
+    body: JSON.stringify({
+      user_id: chatId
+    })
+  });
 
-  await fetch(
-    env.SUPABASE_URL + "/rest/v1/gym_visits",
-    {
-      method: "POST",
-      headers: {
-        "apikey": env.SUPABASE_KEY,
-        "Authorization": "Bearer " + env.SUPABASE_KEY,
-        "Content-Type": "application/json",
-        "Prefer": "return=minimal"
-      },
-      body: JSON.stringify([
-        {
-          user_id: chatId
-        }
-      ])
-    }
-  );
+  const answer = await res.text();
 
   await editMessage(
     env,
     chatId,
     msgId,
-    "✅ Посещение сохранено!\n\nТренировка записана в базу данных.",
+    "✅ Нажатие обработано.\n\nСтатус Supabase: " + res.status + "\nОтвет:\n" + answer,
     navMenu("trainings")
   );
 }
