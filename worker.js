@@ -35,18 +35,33 @@ export default {
         }
 
         if (data === "gym_checkin") {
-  await saveGymVisit(env, cq.from.id);
 
-  await editMessage(env, chatId, msgId,
-    "✅ Красавчик, ты в зале!\n\nПосещение сохранено в базу.",
+  await fetch(
+    env.SUPABASE_URL + "/rest/v1/gym_visits",
+    {
+      method: "POST",
+      headers: {
+        "apikey": env.SUPABASE_KEY,
+        "Authorization": "Bearer " + env.SUPABASE_KEY,
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal"
+      },
+      body: JSON.stringify([
+        {
+          user_id: chatId
+        }
+      ])
+    }
+  );
+
+  await editMessage(
+    env,
+    chatId,
+    msgId,
+    "✅ Посещение сохранено!\n\nТренировка записана в базу данных.",
     navMenu("trainings")
   );
-          await editMessage(env, chatId, msgId,
-            "✅ Красавчик, ты в зале!\n\nПосещение сохранено в базу.",
-            navMenu("trainings")
-          );
-        }
-
+}
         if (data === "free_workout") {
           await editMessage(env, chatId, msgId, "🆓 Свободная тренировка\n\nВыбери группу мышц:", muscleGroupsMenu());
         }
