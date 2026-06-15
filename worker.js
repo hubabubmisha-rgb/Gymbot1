@@ -1,367 +1,327 @@
 const VISIT_COOLDOWN_HOURS = 3;
 
-const EXERCISES = {
-  bench: { name: "Жим лёжа", group: "Грудь" },
-  incline_bench: { name: "Жим на наклонной", group: "Грудь" },
-  machine_press: { name: "Жим в тренажёре", group: "Грудь" },
-  pec_deck: { name: "Бабочка", group: "Грудь" },
-  crossover: { name: "Кроссовер", group: "Грудь" },
-  dumbbell_press: { name: "Жим гантелей лёжа", group: "Грудь" },
+const EX = {
+  bench: ["Жим лёжа", "Грудь"],
+  incline_bench: ["Жим на наклонной", "Грудь"],
+  machine_press: ["Жим в тренажёре", "Грудь"],
+  pec_deck: ["Бабочка", "Грудь"],
+  crossover: ["Кроссовер", "Грудь"],
+  dumbbell_press: ["Жим гантелей лёжа", "Грудь"],
 
-  lat_pulldown: { name: "Тяга верхнего блока", group: "Спина" },
-  lat_machine: { name: "Тяга верхнего блока в тренажёре", group: "Спина" },
-  seated_row: { name: "Тяга горизонтального блока", group: "Спина" },
-  pullover: { name: "Пуловер", group: "Спина" },
-  pullups: { name: "Подтягивания", group: "Спина" },
-  dumbbell_row: { name: "Тяга гантели одной рукой", group: "Спина" },
+  lat_pulldown: ["Тяга верхнего блока", "Спина"],
+  lat_machine: ["Тяга верхнего блока в тренажёре", "Спина"],
+  seated_row: ["Тяга горизонтального блока", "Спина"],
+  pullover: ["Пуловер", "Спина"],
+  pullups: ["Подтягивания", "Спина"],
+  dumbbell_row: ["Тяга гантели одной рукой", "Спина"],
 
-  squat: { name: "Приседания", group: "Ноги" },
-  leg_press: { name: "Платформа", group: "Ноги" },
-  leg_ext: { name: "Разгибание на квадрицепс", group: "Ноги" },
-  leg_curl: { name: "Задняя поверхность бедра в тренажёре", group: "Ноги" },
-  calves: { name: "Икры", group: "Ноги" },
-  lunges: { name: "Выпады", group: "Ноги" },
-  romanian: { name: "Румынская тяга", group: "Ноги" },
+  squat: ["Приседания", "Ноги"],
+  leg_press: ["Платформа", "Ноги"],
+  leg_ext: ["Разгибание на квадрицепс", "Ноги"],
+  leg_curl: ["Задняя поверхность бедра в тренажёре", "Ноги"],
+  calves: ["Икры", "Ноги"],
+  lunges: ["Выпады", "Ноги"],
+  romanian: ["Румынская тяга", "Ноги"],
 
-  front_raise: { name: "Подъём перед собой", group: "Плечи", sub: "Передняя дельта" },
-  shoulder_press: { name: "Жим гантелей сидя", group: "Плечи", sub: "Передняя дельта" },
-  lateral_raise: { name: "Подъём гантелей", group: "Плечи", sub: "Средняя дельта" },
-  cable_lateral: { name: "Разгибание в кроссовере", group: "Плечи", sub: "Средняя дельта" },
-  rear_deck: { name: "Бабочка", group: "Плечи", sub: "Задняя дельта" },
-  face_pull: { name: "Тяга каната к лицу", group: "Плечи", sub: "Задняя дельта" },
+  shoulder_press: ["Жим гантелей сидя", "Плечи", "Передняя дельта"],
+  front_raise: ["Подъём перед собой", "Плечи", "Передняя дельта"],
+  lateral_raise: ["Подъём гантелей", "Плечи", "Средняя дельта"],
+  cable_lateral: ["Разгибание в кроссовере", "Плечи", "Средняя дельта"],
+  rear_deck: ["Бабочка на заднюю дельту", "Плечи", "Задняя дельта"],
+  face_pull: ["Тяга каната к лицу", "Плечи", "Задняя дельта"],
 
-  scott: { name: "Скамья Скотта", group: "Руки", sub: "Бицепс" },
-  zbar_curl: { name: "Подъём Z-грифа", group: "Руки", sub: "Бицепс" },
-  dumbbell_sitting: { name: "Гантели сидя", group: "Руки", sub: "Бицепс" },
-  dumbbell_standing: { name: "Гантели стоя", group: "Руки", sub: "Бицепс" },
-  hammer: { name: "Молотки", group: "Руки", sub: "Предплечье" },
-  reverse_curl: { name: "Подъём обратным хватом", group: "Руки", sub: "Предплечье" },
-  farmer: { name: "Фермерская прогулка", group: "Руки", sub: "Предплечье" },
-  triceps_pushdown: { name: "Разгибание на блоке", group: "Руки", sub: "Трицепс" },
-  overhead_triceps: { name: "Разгибание на блоке из-за головы", group: "Руки", sub: "Трицепс" },
-  french_press: { name: "Французский жим", group: "Руки", sub: "Трицепс" },
-  close_grip: { name: "Узкий жим", group: "Руки", sub: "Трицепс" },
+  scott: ["Скамья Скотта", "Руки", "Бицепс"],
+  zbar_curl: ["Подъём Z-грифа", "Руки", "Бицепс"],
+  dumbbell_sitting: ["Гантели сидя", "Руки", "Бицепс"],
+  dumbbell_standing: ["Гантели стоя", "Руки", "Бицепс"],
+  hammer: ["Молотки", "Руки", "Предплечье"],
+  reverse_curl: ["Подъём обратным хватом", "Руки", "Предплечье"],
+  farmer: ["Фермерская прогулка", "Руки", "Предплечье"],
+  triceps_pushdown: ["Разгибание на блоке", "Руки", "Трицепс"],
+  overhead_triceps: ["Разгибание на блоке из-за головы", "Руки", "Трицепс"],
+  french_press: ["Французский жим", "Руки", "Трицепс"],
+  close_grip: ["Узкий жим", "Руки", "Трицепс"],
 
-  crunch: { name: "Скручивания", group: "Пресс" },
-  leg_raise: { name: "Подъём ног", group: "Пресс" },
-  plank: { name: "Планка", group: "Пресс" },
+  crunch: ["Скручивания", "Пресс"],
+  leg_raise: ["Подъём ног", "Пресс"],
+  plank: ["Планка", "Пресс"],
 
-  bike: { name: "Велосипед", group: "Кардио" },
-  walk: { name: "Ходьба", group: "Кардио" },
-  run: { name: "Бег", group: "Кардио" },
-  ellipse: { name: "Эллипс", group: "Кардио" }
+  bike: ["Велосипед", "Кардио"],
+  walk: ["Ходьба", "Кардио"],
+  run: ["Бег", "Кардио"],
+  ellipse: ["Эллипс", "Кардио"]
 };
 
 const GROUPS = {
-  chest: { title: "Грудь", ids: ["bench", "incline_bench", "machine_press", "pec_deck", "crossover", "dumbbell_press"] },
-  back: { title: "Спина", ids: ["lat_pulldown", "lat_machine", "seated_row", "pullover", "pullups", "dumbbell_row"] },
-  legs: { title: "Ноги", ids: ["squat", "leg_press", "leg_ext", "leg_curl", "calves", "lunges", "romanian"] },
-  shoulders: { title: "Плечи", subs: {
-    front: { title: "Передняя дельта", ids: ["shoulder_press", "front_raise"] },
-    middle: { title: "Средняя дельта", ids: ["lateral_raise", "cable_lateral"] },
-    rear: { title: "Задняя дельта", ids: ["rear_deck", "face_pull"] }
-  }},
-  arms: { title: "Руки", subs: {
-    biceps: { title: "Бицепс", ids: ["scott", "zbar_curl", "dumbbell_sitting", "dumbbell_standing"] },
-    triceps: { title: "Трицепс", ids: ["triceps_pushdown", "overhead_triceps", "french_press", "close_grip"] },
-    forearm: { title: "Предплечье", ids: ["hammer", "reverse_curl", "farmer"] }
-  }},
-  abs: { title: "Пресс", ids: ["crunch", "leg_raise", "plank"] },
-  cardio: { title: "Кардио", ids: ["bike", "walk", "run", "ellipse"] }
+  chest: ["Грудь", ["bench", "incline_bench", "machine_press", "pec_deck", "crossover", "dumbbell_press"]],
+  back: ["Спина", ["lat_pulldown", "lat_machine", "seated_row", "pullover", "pullups", "dumbbell_row"]],
+  legs: ["Ноги", ["squat", "leg_press", "leg_ext", "leg_curl", "calves", "lunges", "romanian"]],
+  abs: ["Пресс", ["crunch", "leg_raise", "plank"]],
+  cardio: ["Кардио", ["bike", "walk", "run", "ellipse"]]
+};
+
+const SUBGROUPS = {
+  shoulders: {
+    title: "Плечи",
+    subs: {
+      front: ["Передняя дельта", ["shoulder_press", "front_raise"]],
+      middle: ["Средняя дельта", ["lateral_raise", "cable_lateral"]],
+      rear: ["Задняя дельта", ["rear_deck", "face_pull"]]
+    }
+  },
+  arms: {
+    title: "Руки",
+    subs: {
+      biceps: ["Бицепс", ["scott", "zbar_curl", "dumbbell_sitting", "dumbbell_standing"]],
+      triceps: ["Трицепс", ["triceps_pushdown", "overhead_triceps", "french_press", "close_grip"]],
+      forearm: ["Предплечье", ["hammer", "reverse_curl", "farmer"]]
+    }
+  }
 };
 
 const PROGRAMS = {
-  fb_beginner: {
-    name: "Фуллбади: новичок",
-    days: [
-      ["Жим лёжа — 3×8–10", "Тяга верхнего блока — 3×10", "Приседания — 3×8", "Подъём гантелей — 3×12", "Разгибание на блоке — 2×12", "Скамья Скотта — 2×12"],
-      ["Жим на наклонной — 3×10", "Тяга горизонтального блока — 3×10", "Платформа — 3×12", "Бабочка на заднюю дельту — 3×15", "Молотки — 2×12", "Французский жим — 2×12"]
-    ]
-  },
-  fb_classic: {
-    name: "Фуллбади: классика",
-    days: [
-      ["Жим лёжа — 4×8–12", "Тяга верхнего блока — 4×8–12", "Платформа — 4×10", "Подъём гантелей — 3×12", "Подъём Z-грифа — 3×10", "Разгибание на блоке — 3×10"],
-      ["Жим на наклонной — 4×8–12", "Тяга горизонтального блока — 4×8–12", "Приседания — 4×8", "Бабочка — 3×12", "Гантели сидя — 3×10", "Французский жим — 3×10"]
-    ]
-  },
-  fb_chest: {
-    name: "Фуллбади: упор грудь",
-    days: [
-      ["Жим лёжа — 4×8", "Жим на наклонной — 4×10", "Бабочка — 3×12–15", "Тяга верхнего блока — 3×10", "Платформа — 3×12", "Разгибание на блоке — 3×12"],
-      ["Жим в тренажёре — 4×10", "Кроссовер — 3×15", "Тяга горизонтального блока — 3×10", "Разгибание на квадрицепс — 3×12", "Подъём гантелей — 3×15", "Скамья Скотта — 3×12"]
-    ]
-  },
-  fb_back: {
-    name: "Фуллбади: упор спина",
-    days: [
-      ["Тяга верхнего блока — 4×8–12", "Тяга горизонтального блока — 4×8–12", "Пуловер — 3×12", "Жим лёжа — 3×10", "Платформа — 3×12", "Молотки — 3×12"],
-      ["Тяга верхнего блока в тренажёре — 4×10", "Тяга гантели одной рукой — 3×10", "Подтягивания — 3 подхода", "Жим на наклонной — 3×10", "Задняя поверхность бедра — 3×12", "Бабочка на заднюю дельту — 3×15"]
-    ]
-  },
-  fb_legs: {
-    name: "Фуллбади: упор ноги",
-    days: [
-      ["Приседания — 4×8", "Платформа — 4×10", "Разгибание на квадрицепс — 3×12", "Задняя поверхность бедра — 3×12", "Жим лёжа — 3×10", "Тяга верхнего блока — 3×10"],
-      ["Платформа — 4×12", "Румынская тяга — 3×10", "Икры — 4×15", "Жим на наклонной — 3×10", "Тяга горизонтального блока — 3×10", "Подъём гантелей — 3×15"]
-    ]
-  },
-  fb_shoulders: {
-    name: "Фуллбади: упор плечи",
-    days: [
-      ["Жим гантелей сидя — 4×8–10", "Подъём гантелей — 4×12–15", "Бабочка на заднюю дельту — 4×12–15", "Жим лёжа — 3×10", "Тяга верхнего блока — 3×10", "Платформа — 3×12"],
-      ["Разгибание в кроссовере — 4×12–15", "Тяга каната к лицу — 4×15", "Жим на наклонной — 3×10", "Тяга горизонтального блока — 3×10", "Приседания — 3×8", "Разгибание на блоке — 3×12"]
-    ]
-  },
-  fb_arms: {
-    name: "Фуллбади: упор руки",
-    days: [
-      ["Подъём Z-грифа — 4×10", "Скамья Скотта — 3×12", "Разгибание на блоке — 4×10", "Французский жим — 3×10", "Жим лёжа — 3×8", "Тяга верхнего блока — 3×10"],
-      ["Гантели сидя — 3×12", "Молотки — 3×12", "Разгибание из-за головы — 3×12", "Узкий жим — 3×8", "Платформа — 3×12", "Подъём гантелей — 3×15"]
-    ]
-  },
-  fb_strength: {
-    name: "Фуллбади: силовая",
-    days: [
-      ["Жим лёжа — 5×5", "Приседания — 5×5", "Тяга верхнего блока — 4×6–8", "Жим гантелей сидя — 4×6", "Подъём Z-грифа — 3×8", "Разгибание на блоке — 3×8"],
-      ["Жим на наклонной — 4×6", "Платформа — 5×8", "Тяга горизонтального блока — 4×8", "Французский жим — 3×8", "Скамья Скотта — 3×8"]
-    ]
-  },
-  fb_home: {
-    name: "Фуллбади: дом",
-    days: [
-      ["Отжимания — 4 подхода", "Выпады — 4×12", "Планка — 3 подхода", "Скручивания — 4×15", "Бег или ходьба — 20–30 мин"],
-      ["Приседания без веса — 4×20", "Отжимания узкие — 4 подхода", "Подъём ног — 4×12", "Планка — 3 подхода", "Ходьба — 30 мин"]
-    ]
-  },
-  fb_girls: {
-    name: "Фуллбади: девушки",
-    days: [
-      ["Платформа — 4×12", "Задняя поверхность бедра — 4×12", "Ягодичный мост — 4×12", "Тяга верхнего блока — 3×10", "Жим в тренажёре — 3×12", "Пресс — 3 подхода"],
-      ["Приседания — 4×10", "Выпады — 3×12", "Разгибание ног — 3×12", "Тяга горизонтального блока — 3×10", "Бабочка — 3×12", "Кардио — 20 мин"]
-    ]
-  },
-  split_ppl: {
-    name: "Сплит: Push / Pull / Legs",
-    days: [
-      ["Push", "Жим лёжа — 4×8", "Жим на наклонной — 4×10", "Жим гантелей сидя — 3×10", "Подъём гантелей — 3×15", "Разгибание на блоке — 4×12"],
-      ["Pull", "Тяга верхнего блока — 4×10", "Тяга горизонтального блока — 4×10", "Пуловер — 3×12", "Бабочка на заднюю дельту — 3×15", "Подъём Z-грифа — 3×12"],
-      ["Legs", "Приседания — 4×8", "Платформа — 4×12", "Разгибание ног — 3×15", "Задняя поверхность бедра — 3×12", "Икры — 4×15"]
-    ]
-  },
-  split_upper_lower: {
-    name: "Сплит: верх / низ",
-    days: [
-      ["Верх", "Жим лёжа — 4×8", "Тяга верхнего блока — 4×10", "Жим на наклонной — 3×10", "Тяга горизонтального блока — 3×10", "Подъём гантелей — 3×15", "Руки — 4 упражнения"],
-      ["Низ", "Приседания — 4×8", "Платформа — 4×12", "Разгибание ног — 3×15", "Задняя поверхность бедра — 3×12", "Икры — 4×15", "Пресс — 3 подхода"]
-    ]
-  },
-  split_classic: {
-    name: "Сплит: грудь / спина / ноги",
-    days: [
-      ["Грудь", "Жим лёжа — 4×8–12", "Жим на наклонной — 4×8–12", "Жим в тренажёре — 3×10", "Бабочка — 3×12–15"],
-      ["Спина", "Тяга верхнего блока — 4×8–12", "Тяга горизонтального блока — 4×8–12", "Тяга верхнего блока в тренажёре — 3×10", "Пуловер — 3×12–15"],
-      ["Ноги", "Приседания — 4×8", "Платформа — 4×12", "Разгибание ног — 3×15", "Задняя поверхность бедра — 3×12", "Икры — 4×15"]
-    ]
-  },
-  split_chest: {
-    name: "Сплит: упор грудь",
-    days: [
-      ["Грудь тяжёлая", "Жим лёжа — 5×5", "Жим на наклонной — 4×8", "Жим в тренажёре — 3×10", "Бабочка — 3×15"],
-      ["Спина + руки", "Тяга верхнего блока — 4×10", "Тяга горизонтального блока — 4×10", "Скамья Скотта — 3×12", "Разгибание на блоке — 3×12"],
-      ["Грудь объёмная", "Жим на наклонной — 4×10", "Жим гантелей лёжа — 3×12", "Кроссовер — 3×15", "Бабочка — 3×15"],
-      ["Ноги + плечи", "Платформа — 4×12", "Приседания — 3×8", "Подъём гантелей — 4×15", "Бабочка на заднюю дельту — 3×15"]
-    ]
-  },
-  split_back: {
-    name: "Сплит: упор спина",
-    days: [
-      ["Спина ширина", "Тяга верхнего блока — 5×8–12", "Тяга верхнего блока в тренажёре — 4×10", "Пуловер — 4×12"],
-      ["Грудь + плечи", "Жим лёжа — 4×8", "Жим на наклонной — 3×10", "Подъём гантелей — 4×15"],
-      ["Спина толщина", "Тяга горизонтального блока — 5×8–12", "Тяга гантели одной рукой — 4×10", "Бабочка на заднюю дельту — 4×15"],
-      ["Ноги + руки", "Платформа — 4×12", "Разгибание ног — 3×15", "Подъём Z-грифа — 3×12", "Разгибание на блоке — 3×12"]
-    ]
-  },
-  split_legs: {
-    name: "Сплит: упор ноги",
-    days: [
-      ["Ноги тяжело", "Приседания — 5×5", "Платформа — 4×10", "Разгибание ног — 3×15", "Икры — 4×15"],
-      ["Верх", "Жим лёжа — 4×8", "Тяга верхнего блока — 4×10", "Подъём гантелей — 3×15", "Руки — 4 упражнения"],
-      ["Ноги объём", "Платформа — 5×12", "Задняя поверхность бедра — 4×12", "Выпады — 3×12", "Икры — 4×20"]
-    ]
-  },
-  split_shoulders: {
-    name: "Сплит: упор плечи",
-    days: [
-      ["Плечи тяжело", "Жим гантелей сидя — 4×8", "Подъём гантелей — 4×12", "Бабочка на заднюю дельту — 4×15"],
-      ["Грудь + трицепс", "Жим лёжа — 4×8", "Жим на наклонной — 3×10", "Разгибание на блоке — 4×12"],
-      ["Спина + бицепс", "Тяга верхнего блока — 4×10", "Тяга горизонтального блока — 4×10", "Подъём Z-грифа — 4×12"],
-      ["Плечи объём", "Разгибание в кроссовере — 4×15", "Тяга каната к лицу — 4×15", "Подъём перед собой — 3×12"]
-    ]
-  },
-  split_arms: {
-    name: "Сплит: упор руки",
-    days: [
-      ["Бицепс + трицепс", "Подъём Z-грифа — 4×10", "Скамья Скотта — 3×12", "Разгибание на блоке — 4×10", "Французский жим — 3×10"],
-      ["Грудь + спина", "Жим лёжа — 4×8", "Тяга верхнего блока — 4×10", "Жим на наклонной — 3×10", "Тяга горизонтального блока — 3×10"],
-      ["Ноги + плечи", "Платформа — 4×12", "Приседания — 3×8", "Подъём гантелей — 4×15", "Бабочка на заднюю дельту — 3×15"],
-      ["Руки объём", "Гантели сидя — 3×12", "Молотки — 3×12", "Разгибание из-за головы — 3×12", "Узкий жим — 3×8", "Фермерская прогулка — 3 подхода"]
-    ]
-  },
-  split_beginner: {
-    name: "Сплит: новичок",
-    days: [
-      ["Верх", "Жим лёжа — 3×10", "Тяга верхнего блока — 3×10", "Жим в тренажёре — 3×12", "Тяга горизонтального блока — 3×12", "Подъём гантелей — 3×15"],
-      ["Низ", "Платформа — 4×12", "Разгибание ног — 3×15", "Задняя поверхность бедра — 3×12", "Икры — 4×15", "Скручивания — 3×15"]
-    ]
-  },
-  split_bench: {
-    name: "Сплит: силовой жим",
-    days: [
-      ["Жим тяжёлый", "Жим лёжа — 5×5", "Жим на наклонной — 4×6", "Узкий жим — 4×6", "Разгибание на блоке — 3×10"],
-      ["Спина", "Тяга верхнего блока — 4×8", "Тяга горизонтального блока — 4×8", "Пуловер — 3×12", "Бабочка на заднюю дельту — 4×15"],
-      ["Жим объём", "Жим лёжа — 4×8", "Жим в тренажёре — 4×10", "Бабочка — 3×15", "Французский жим — 3×10"],
-      ["Ноги + плечи", "Приседания — 4×8", "Платформа — 4×12", "Жим гантелей сидя — 3×10", "Подъём гантелей — 3×15"]
-    ]
-  }
+  fb_beginner: p("Фуллбади: новичок", [
+    ["Жим лёжа 3x8", "Тяга верхнего блока 3x10", "Приседания 3x8", "Подъём гантелей 3x12", "Разгибание на блоке 2x12", "Скамья Скотта 2x12"],
+    ["Жим на наклонной 3x10", "Тяга горизонтального блока 3x10", "Платформа 3x12", "Бабочка на заднюю дельту 3x15", "Молотки 2x12", "Французский жим 2x12"]
+  ]),
+  fb_classic: p("Фуллбади: классика", [
+    ["Жим лёжа 4x8", "Тяга верхнего блока 4x10", "Платформа 4x10", "Подъём гантелей 3x12", "Подъём Z-грифа 3x10", "Разгибание на блоке 3x10"],
+    ["Жим на наклонной 4x10", "Тяга горизонтального блока 4x10", "Приседания 4x8", "Бабочка 3x12", "Гантели сидя 3x10", "Французский жим 3x10"]
+  ]),
+  fb_chest: p("Фуллбади: упор грудь", [
+    ["Жим лёжа 4x8", "Жим на наклонной 4x10", "Бабочка 3x15", "Тяга верхнего блока 3x10", "Платформа 3x12", "Разгибание на блоке 3x12"],
+    ["Жим в тренажёре 4x10", "Кроссовер 3x15", "Тяга горизонтального блока 3x10", "Разгибание ног 3x12", "Подъём гантелей 3x15", "Скамья Скотта 3x12"]
+  ]),
+  fb_back: p("Фуллбади: упор спина", [
+    ["Тяга верхнего блока 4x10", "Тяга горизонтального блока 4x10", "Пуловер 3x12", "Жим лёжа 3x10", "Платформа 3x12", "Молотки 3x12"],
+    ["Тяга верхнего блока в тренажёре 4x10", "Тяга гантели одной рукой 3x10", "Подтягивания 3 подхода", "Жим на наклонной 3x10", "Задняя поверхность бедра 3x12", "Бабочка на заднюю дельту 3x15"]
+  ]),
+  fb_legs: p("Фуллбади: упор ноги", [
+    ["Приседания 4x8", "Платформа 4x10", "Разгибание ног 3x12", "Задняя поверхность бедра 3x12", "Жим лёжа 3x10", "Тяга верхнего блока 3x10"],
+    ["Платформа 4x12", "Румынская тяга 3x10", "Икры 4x15", "Жим на наклонной 3x10", "Тяга горизонтального блока 3x10", "Подъём гантелей 3x15"]
+  ]),
+  fb_shoulders: p("Фуллбади: упор плечи", [
+    ["Жим гантелей сидя 4x8", "Подъём гантелей 4x15", "Бабочка на заднюю дельту 4x15", "Жим лёжа 3x10", "Тяга верхнего блока 3x10", "Платформа 3x12"],
+    ["Разгибание в кроссовере 4x15", "Тяга каната к лицу 4x15", "Жим на наклонной 3x10", "Тяга горизонтального блока 3x10", "Приседания 3x8", "Разгибание на блоке 3x12"]
+  ]),
+  fb_arms: p("Фуллбади: упор руки", [
+    ["Подъём Z-грифа 4x10", "Скамья Скотта 3x12", "Разгибание на блоке 4x10", "Французский жим 3x10", "Жим лёжа 3x8", "Тяга верхнего блока 3x10"],
+    ["Гантели сидя 3x12", "Молотки 3x12", "Разгибание из-за головы 3x12", "Узкий жим 3x8", "Платформа 3x12", "Подъём гантелей 3x15"]
+  ]),
+  fb_strength: p("Фуллбади: силовая", [
+    ["Жим лёжа 5x5", "Приседания 5x5", "Тяга верхнего блока 4x8", "Жим гантелей сидя 4x6", "Подъём Z-грифа 3x8", "Разгибание на блоке 3x8"],
+    ["Жим на наклонной 4x6", "Платформа 5x8", "Тяга горизонтального блока 4x8", "Французский жим 3x8", "Скамья Скотта 3x8"]
+  ]),
+  fb_home: p("Фуллбади: дом", [
+    ["Отжимания 4 подхода", "Выпады 4x12", "Планка 3 подхода", "Скручивания 4x15", "Бег или ходьба 20-30 мин"],
+    ["Приседания без веса 4x20", "Отжимания узкие 4 подхода", "Подъём ног 4x12", "Планка 3 подхода", "Ходьба 30 мин"]
+  ]),
+  fb_fatloss: p("Фуллбади: жиросжигание", [
+    ["Платформа 4x15", "Жим в тренажёре 3x12", "Тяга верхнего блока 3x12", "Подъём гантелей 3x15", "Скручивания 3x20", "Кардио 20 мин"],
+    ["Приседания 4x12", "Жим на наклонной 3x12", "Тяга горизонтального блока 3x12", "Бабочка 3x15", "Планка 3 подхода", "Кардио 20 мин"]
+  ]),
+  split_ppl: p("Сплит: Push / Pull / Legs", [
+    ["Push", "Жим лёжа 4x8", "Жим на наклонной 4x10", "Жим гантелей сидя 3x10", "Подъём гантелей 3x15", "Разгибание на блоке 4x12"],
+    ["Pull", "Тяга верхнего блока 4x10", "Тяга горизонтального блока 4x10", "Пуловер 3x12", "Бабочка на заднюю дельту 3x15", "Подъём Z-грифа 3x12"],
+    ["Legs", "Приседания 4x8", "Платформа 4x12", "Разгибание ног 3x15", "Задняя поверхность бедра 3x12", "Икры 4x15"]
+  ]),
+  split_upper_lower: p("Сплит: верх / низ", [
+    ["Верх", "Жим лёжа 4x8", "Тяга верхнего блока 4x10", "Жим на наклонной 3x10", "Тяга горизонтального блока 3x10", "Подъём гантелей 3x15", "Руки 4 упражнения"],
+    ["Низ", "Приседания 4x8", "Платформа 4x12", "Разгибание ног 3x15", "Задняя поверхность бедра 3x12", "Икры 4x15", "Пресс 3 подхода"]
+  ]),
+  split_classic: p("Сплит: грудь / спина / ноги", [
+    ["Грудь", "Жим лёжа 4x8", "Жим на наклонной 4x10", "Жим в тренажёре 3x10", "Бабочка 3x15"],
+    ["Спина", "Тяга верхнего блока 4x10", "Тяга горизонтального блока 4x10", "Тяга верхнего блока в тренажёре 3x10", "Пуловер 3x12"],
+    ["Ноги", "Приседания 4x8", "Платформа 4x12", "Разгибание ног 3x15", "Задняя поверхность бедра 3x12", "Икры 4x15"]
+  ]),
+  split_chest: p("Сплит: упор грудь", [
+    ["Грудь тяжёлая", "Жим лёжа 5x5", "Жим на наклонной 4x8", "Жим в тренажёре 3x10", "Бабочка 3x15"],
+    ["Спина + руки", "Тяга верхнего блока 4x10", "Тяга горизонтального блока 4x10", "Скамья Скотта 3x12", "Разгибание на блоке 3x12"],
+    ["Грудь объёмная", "Жим на наклонной 4x10", "Жим гантелей лёжа 3x12", "Кроссовер 3x15", "Бабочка 3x15"],
+    ["Ноги + плечи", "Платформа 4x12", "Приседания 3x8", "Подъём гантелей 4x15", "Бабочка на заднюю дельту 3x15"]
+  ]),
+  split_back: p("Сплит: упор спина", [
+    ["Спина ширина", "Тяга верхнего блока 5x10", "Тяга верхнего блока в тренажёре 4x10", "Пуловер 4x12"],
+    ["Грудь + плечи", "Жим лёжа 4x8", "Жим на наклонной 3x10", "Подъём гантелей 4x15"],
+    ["Спина толщина", "Тяга горизонтального блока 5x10", "Тяга гантели одной рукой 4x10", "Бабочка на заднюю дельту 4x15"],
+    ["Ноги + руки", "Платформа 4x12", "Разгибание ног 3x15", "Подъём Z-грифа 3x12", "Разгибание на блоке 3x12"]
+  ]),
+  split_legs: p("Сплит: упор ноги", [
+    ["Ноги тяжело", "Приседания 5x5", "Платформа 4x10", "Разгибание ног 3x15", "Икры 4x15"],
+    ["Верх", "Жим лёжа 4x8", "Тяга верхнего блока 4x10", "Подъём гантелей 3x15", "Руки 4 упражнения"],
+    ["Ноги объём", "Платформа 5x12", "Задняя поверхность бедра 4x12", "Выпады 3x12", "Икры 4x20"]
+  ]),
+  split_shoulders: p("Сплит: упор плечи", [
+    ["Плечи тяжело", "Жим гантелей сидя 4x8", "Подъём гантелей 4x12", "Бабочка на заднюю дельту 4x15"],
+    ["Грудь + трицепс", "Жим лёжа 4x8", "Жим на наклонной 3x10", "Разгибание на блоке 4x12"],
+    ["Спина + бицепс", "Тяга верхнего блока 4x10", "Тяга горизонтального блока 4x10", "Подъём Z-грифа 4x12"],
+    ["Плечи объём", "Разгибание в кроссовере 4x15", "Тяга каната к лицу 4x15", "Подъём перед собой 3x12"]
+  ]),
+  split_arms: p("Сплит: упор руки", [
+    ["Бицепс + трицепс", "Подъём Z-грифа 4x10", "Скамья Скотта 3x12", "Разгибание на блоке 4x10", "Французский жим 3x10"],
+    ["Грудь + спина", "Жим лёжа 4x8", "Тяга верхнего блока 4x10", "Жим на наклонной 3x10", "Тяга горизонтального блока 3x10"],
+    ["Ноги + плечи", "Платформа 4x12", "Приседания 3x8", "Подъём гантелей 4x15", "Бабочка на заднюю дельту 3x15"],
+    ["Руки объём", "Гантели сидя 3x12", "Молотки 3x12", "Разгибание из-за головы 3x12", "Узкий жим 3x8", "Фермерская прогулка 3 подхода"]
+  ]),
+  split_beginner: p("Сплит: новичок", [
+    ["Верх", "Жим лёжа 3x10", "Тяга верхнего блока 3x10", "Жим в тренажёре 3x12", "Тяга горизонтального блока 3x12", "Подъём гантелей 3x15"],
+    ["Низ", "Платформа 4x12", "Разгибание ног 3x15", "Задняя поверхность бедра 3x12", "Икры 4x15", "Скручивания 3x15"]
+  ]),
+  split_bench: p("Сплит: силовой жим", [
+    ["Жим тяжёлый", "Жим лёжа 5x5", "Жим на наклонной 4x6", "Узкий жим 4x6", "Разгибание на блоке 3x10"],
+    ["Спина", "Тяга верхнего блока 4x8", "Тяга горизонтального блока 4x8", "Пуловер 3x12", "Бабочка на заднюю дельту 4x15"],
+    ["Жим объём", "Жим лёжа 4x8", "Жим в тренажёре 4x10", "Бабочка 3x15", "Французский жим 3x10"],
+    ["Ноги + плечи", "Приседания 4x8", "Платформа 4x12", "Жим гантелей сидя 3x10", "Подъём гантелей 3x15"]
+  ])
 };
 
 export default {
   async fetch(request, env) {
     try {
-      if (request.method === "GET") return new Response("Gym Bot v1.1 работает");
-
+      if (request.method === "GET") return new Response("Gym Bot v2 работает");
       if (request.method === "POST") {
         const update = await request.json();
         if (update.message) await handleMessage(env, update.message);
         if (update.callback_query) await handleCallback(env, update.callback_query);
         return new Response("ok");
       }
-
       return new Response("Method not allowed", { status: 405 });
-    } catch (err) {
-      return new Response("Worker error: " + err.message, { status: 500 });
+    } catch (e) {
+      return new Response("Worker error: " + e.message, { status: 500 });
     }
   }
 };
 
+function p(name, days) {
+  return { name, days };
+}
+
 async function handleMessage(env, msg) {
   const chatId = msg.chat.id;
+  const userId = msg.from.id;
   const text = (msg.text || "").trim();
 
   await ensureUser(env, msg.from);
+  const st = await getState(env, userId);
 
   if (text === "/start" || text.toLowerCase() === "меню") {
-    await sendMessage(env, chatId, "Gym Bot v1.1\n\nГлавное меню:", mainMenu());
-    return;
+    await clearState(env, userId);
+    return sendMessage(env, chatId, "Главное меню:", mainMenu());
   }
 
-  if (text.startsWith("/log ")) {
-    await ensureVisitOncePer3Hours(env, msg.from);
-    await saveResultFromText(env, chatId, msg.from.id, text);
-    return;
-  }
+  if (st?.state === "set_input") return handleSetInput(env, msg, st);
+  if (st?.state === "friend_add") return handleFriendAdd(env, msg);
+  if (st?.state === "custom_name") return handleCustomName(env, msg);
 
-  await sendMessage(env, chatId, "Пока управляй ботом через кнопки.\n\nЗапись результата:\n/log bench 80 8", mainMenu());
+  return sendMessage(env, chatId, "Используй кнопки ниже.", mainMenu());
 }
 
 async function handleCallback(env, cq) {
   const chatId = cq.message.chat.id;
   const msgId = cq.message.message_id;
+  const userId = cq.from.id;
   const data = cq.data;
 
   await answerCallback(env, cq.id);
   await ensureUser(env, cq.from);
 
   if (data === "menu") return editMessage(env, chatId, msgId, "Главное меню:", mainMenu());
-
-  if (data === "trainings") return editMessage(env, chatId, msgId, "Тренировки\n\nВыбери действие:", trainingsMenu());
-
-  if (data === "free_workout") {
+  if (data === "trainings") return editMessage(env, chatId, msgId, "Тренировки:", trainingsMenu());
+  if (data === "free") {
     await ensureVisitOncePer3Hours(env, cq.from);
     return editMessage(env, chatId, msgId, "Свободная тренировка\n\nВыбери группу:", muscleGroupsMenu());
   }
-
-  if (data === "log_result") {
+  if (data === "log") {
     await ensureVisitOncePer3Hours(env, cq.from);
-    return editMessage(env, chatId, msgId, "Записать результат\n\nСначала выбери упражнение:", muscleGroupsMenu());
+    return editMessage(env, chatId, msgId, "Записать результат\n\nВыбери упражнение:", muscleGroupsMenu());
   }
-
-  if (data === "programs") return editMessage(env, chatId, msgId, "Программы тренировок\n\nВыбери тип:", programsMenu());
-
-  if (data === "program_full") return editMessage(env, chatId, msgId, "Фуллбади\n\nВыбери программу:", programListMenu("fb"));
-
-  if (data === "program_split") return editMessage(env, chatId, msgId, "Сплиты\n\nВыбери программу:", programListMenu("split"));
-
-  if (data.startsWith("program:")) {
-    await ensureVisitOncePer3Hours(env, cq.from);
-    const id = data.replace("program:", "");
-    return editMessage(env, chatId, msgId, programText(id), programMenu(id));
-  }
-
-  if (data === "analytics") {
-    const text = await analyticsText(env, cq.from.id);
-    return editMessage(env, chatId, msgId, text, navMenu("menu"));
-  }
-
-  if (data === "profile") return editMessage(env, chatId, msgId, profileText(cq.from), navMenu("menu"));
-
-  if (data === "friends") return editMessage(env, chatId, msgId, friendsText(), navMenu("menu"));
-
-  if (data === "food_supps") return editMessage(env, chatId, msgId, "Питание и БАДы\n\nВыбери раздел:", foodSuppsMenu());
-
-  if (data === "food") return editMessage(env, chatId, msgId, nutritionText(), navMenu("food_supps"));
-
-  if (data === "supps") return editMessage(env, chatId, msgId, "Пей креатин, чувак. Пока на этом всё.", navMenu("food_supps"));
 
   if (data.startsWith("group:")) {
-    const groupId = data.replace("group:", "");
-    const group = GROUPS[groupId];
-
-    if (group.subs) return editMessage(env, chatId, msgId, group.title + "\n\nВыбери раздел:", subGroupsMenu(groupId));
-
-    return editMessage(env, chatId, msgId, group.title + "\n\nВыбери упражнение:", exercisesMenu(group.ids, "free_workout"));
+    const g = data.split(":")[1];
+    if (SUBGROUPS[g]) return editMessage(env, chatId, msgId, SUBGROUPS[g].title + "\n\nВыбери раздел:", subGroupsMenu(g));
+    return editMessage(env, chatId, msgId, GROUPS[g][0] + "\n\nВыбери упражнение:", exercisesMenu(GROUPS[g][1], "free"));
   }
 
   if (data.startsWith("sub:")) {
-    const parts = data.split(":");
-    const groupId = parts[1];
-    const subId = parts[2];
-    const sub = GROUPS[groupId].subs[subId];
-    return editMessage(env, chatId, msgId, sub.title + "\n\nВыбери упражнение:", exercisesMenu(sub.ids, "group:" + groupId));
+    const [, g, s] = data.split(":");
+    const sub = SUBGROUPS[g].subs[s];
+    return editMessage(env, chatId, msgId, sub[0] + "\n\nВыбери упражнение:", exercisesMenu(sub[1], "group:" + g));
   }
 
   if (data.startsWith("ex:")) {
-    const exId = data.replace("ex:", "");
-    return editMessage(env, chatId, msgId, exerciseText(exId), exerciseMenu(exId));
+    const id = data.split(":")[1];
+    return editMessage(env, chatId, msgId, exerciseText(id), exerciseMenu(id));
+  }
+
+  if (data.startsWith("set:")) {
+    const id = data.split(":")[1];
+    await setState(env, userId, "set_input", { exercise_id: id });
+    return editMessage(env, chatId, msgId, "Запись подхода\n\n" + EX[id][0] + "\n\nВведи вес и повторы одним сообщением.\n\nПример: 80 8", navMenu("ex:" + id));
   }
 
   if (data.startsWith("hist:")) {
-    const exId = data.replace("hist:", "");
-    const text = await historyText(env, cq.from.id, exId);
-    return editMessage(env, chatId, msgId, text, navMenu("ex:" + exId));
+    const id = data.split(":")[1];
+    return editMessage(env, chatId, msgId, await historyText(env, userId, id), navMenu("ex:" + id));
   }
 
-  if (data.startsWith("log_help:")) {
-    const exId = data.replace("log_help:", "");
-    const ex = EXERCISES[exId];
+  if (data === "programs") return editMessage(env, chatId, msgId, "Программы тренировок:", programsMenu());
+  if (data === "program_full") return editMessage(env, chatId, msgId, "Фуллбади:", programListMenu("fb"));
+  if (data === "program_split") return editMessage(env, chatId, msgId, "Сплиты:", programListMenu("split"));
+  if (data.startsWith("program:")) {
+    const id = data.split(":")[1];
     await ensureVisitOncePer3Hours(env, cq.from);
-    return editMessage(
-      env,
-      chatId,
-      msgId,
-      "Запись результата\n\n" + ex.name + "\n\nОтправь сообщением:\n/log " + exId + " 80 8\n\n80 — вес, 8 — повторы.",
-      navMenu("ex:" + exId)
-    );
+    return editMessage(env, chatId, msgId, programText(id), programMenu(id));
+  }
+  if (data.startsWith("saveprog:")) {
+    const id = data.split(":")[1];
+    await saveProgram(env, userId, PROGRAMS[id].name, "suggested", PROGRAMS[id]);
+    return editMessage(env, chatId, msgId, "Программа сохранена в Мои тренировки:\n\n" + PROGRAMS[id].name, navMenu("my_trainings"));
   }
 
-  if (data === "timer_90") return editMessage(env, chatId, msgId, "Таймер 90 секунд\n\nПока текстовый.", navMenu("trainings"));
+  if (data === "my_trainings") return editMessage(env, chatId, msgId, await myTrainingsText(env, userId), await myTrainingsMenu(env, userId));
+  if (data.startsWith("myprog:")) {
+    const id = data.split(":")[1];
+    return editMessage(env, chatId, msgId, await customProgramText(env, id), customProgramMenu(id));
+  }
+  if (data.startsWith("delprog:")) {
+    const id = data.split(":")[1];
+    await supabaseDelete(env, "custom_programs?id=eq." + id);
+    return editMessage(env, chatId, msgId, "Программа удалена.", navMenu("my_trainings"));
+  }
+  if (data === "custom_program") {
+    await setState(env, userId, "custom_name", {});
+    return editMessage(env, chatId, msgId, "Создание своей программы\n\nНапиши название программы одним сообщением.", navMenu("my_trainings"));
+  }
+
+  if (data === "pick") {
+    await setState(env, userId, "pick", {});
+    return editMessage(env, chatId, msgId, "Подбор тренировки\n\nКак тренируем ноги?", pickMenu("legs"));
+  }
+  if (data.startsWith("pick:")) return handlePick(env, cq, data);
+
+  if (data === "analytics") return editMessage(env, chatId, msgId, await analyticsText(env, userId), navMenu("menu"));
+  if (data === "profile") return editMessage(env, chatId, msgId, profileText(cq.from), navMenu("menu"));
+  if (data === "friends") return editMessage(env, chatId, msgId, "Друзья:", friendsMenu());
+  if (data === "friend_add") {
+    await setState(env, userId, "friend_add", {});
+    return editMessage(env, chatId, msgId, "Добавить друга\n\nПопроси друга открыть Профиль и прислать тебе ID.\n\nВведи ID друга сообщением.", navMenu("friends"));
+  }
+  if (data === "friend_list") return editMessage(env, chatId, msgId, await friendListText(env, userId), navMenu("friends"));
+  if (data === "friend_requests") return editMessage(env, chatId, msgId, await friendRequestsText(env, userId), navMenu("friends"));
+  if (data === "friend_privacy") return editMessage(env, chatId, msgId, "Приватность друзей\n\nСкоро: разрешать или запрещать просмотр тренировок каждому другу отдельно.", navMenu("friends"));
+  if (data === "friend_msg") return editMessage(env, chatId, msgId, "Сообщение друзьям\n\nСкоро: отправка заметки всем друзьям, которым разрешён просмотр.", navMenu("friends"));
+
+  if (data === "food_supps") return editMessage(env, chatId, msgId, "Питание и БАДы:", foodMenu());
+  if (data === "food") return editMessage(env, chatId, msgId, nutritionText(), navMenu("food_supps"));
+  if (data === "supps") return editMessage(env, chatId, msgId, "Креатин 3-5 г в день.\nОмега-3 по желанию.\nВитамин D — лучше после анализа.", navMenu("food_supps"));
 }
 
 function mainMenu() {
   return { inline_keyboard: [
     [{ text: "Тренировки", callback_data: "trainings" }],
     [{ text: "Программы тренировок", callback_data: "programs" }],
+    [{ text: "Мои тренировки", callback_data: "my_trainings" }],
+    [{ text: "Подобрать тренировку", callback_data: "pick" }],
     [{ text: "Аналитика", callback_data: "analytics" }],
     [{ text: "Друзья", callback_data: "friends" }],
     [{ text: "Профиль", callback_data: "profile" }],
@@ -371,9 +331,10 @@ function mainMenu() {
 
 function trainingsMenu() {
   return { inline_keyboard: [
-    [{ text: "Свободная тренировка", callback_data: "free_workout" }],
-    [{ text: "Записать результат", callback_data: "log_result" }],
+    [{ text: "Свободная тренировка", callback_data: "free" }],
+    [{ text: "Записать результат", callback_data: "log" }],
     [{ text: "Тренировка по программе", callback_data: "programs" }],
+    [{ text: "Мои тренировки", callback_data: "my_trainings" }],
     [{ text: "Главное меню", callback_data: "menu" }]
   ]};
 }
@@ -391,31 +352,28 @@ function muscleGroupsMenu() {
   ]};
 }
 
-function subGroupsMenu(groupId) {
-  const subs = GROUPS[groupId].subs;
-  const rows = Object.keys(subs).map(id => [{ text: subs[id].title, callback_data: "sub:" + groupId + ":" + id }]);
-  rows.push([{ text: "Назад", callback_data: "free_workout" }, { text: "Главное меню", callback_data: "menu" }]);
+function subGroupsMenu(g) {
+  const rows = Object.keys(SUBGROUPS[g].subs).map(s => [{ text: SUBGROUPS[g].subs[s][0], callback_data: "sub:" + g + ":" + s }]);
+  rows.push([{ text: "Назад", callback_data: "free" }, { text: "Главное меню", callback_data: "menu" }]);
   return { inline_keyboard: rows };
 }
 
-function exercisesMenu(ids, backTo) {
-  const rows = ids.map(id => [{ text: EXERCISES[id].name, callback_data: "ex:" + id }]);
-  rows.push([{ text: "Назад", callback_data: backTo }, { text: "Главное меню", callback_data: "menu" }]);
+function exercisesMenu(ids, back) {
+  const rows = ids.map(id => [{ text: EX[id][0], callback_data: "ex:" + id }]);
+  rows.push([{ text: "Назад", callback_data: back }, { text: "Главное меню", callback_data: "menu" }]);
   return { inline_keyboard: rows };
 }
 
-function exerciseText(exId) {
-  const ex = EXERCISES[exId];
-  return ex.name + "\n\nГруппа: " + ex.group + (ex.sub ? "\nРаздел: " + ex.sub : "") +
-    "\n\nТехника:\n• двигайся подконтрольно\n• не гонись за весом\n• держи амплитуду\n• выдох на усилии\n\nФото добавим следующим этапом.";
+function exerciseText(id) {
+  const e = EX[id];
+  return e[0] + "\n\nГруппа: " + e[1] + (e[2] ? "\nРаздел: " + e[2] : "") + "\n\nВыбери действие.";
 }
 
-function exerciseMenu(exId) {
+function exerciseMenu(id) {
   return { inline_keyboard: [
-    [{ text: "Записать результат", callback_data: "log_help:" + exId }],
-    [{ text: "История", callback_data: "hist:" + exId }],
-    [{ text: "Таймер 90 сек", callback_data: "timer_90" }],
-    [{ text: "Назад", callback_data: "free_workout" }, { text: "Главное меню", callback_data: "menu" }]
+    [{ text: "Записать подход", callback_data: "set:" + id }],
+    [{ text: "История", callback_data: "hist:" + id }],
+    [{ text: "Назад", callback_data: "free" }, { text: "Главное меню", callback_data: "menu" }]
   ]};
 }
 
@@ -423,6 +381,8 @@ function programsMenu() {
   return { inline_keyboard: [
     [{ text: "Фуллбади", callback_data: "program_full" }],
     [{ text: "Сплиты", callback_data: "program_split" }],
+    [{ text: "Создать свою программу", callback_data: "custom_program" }],
+    [{ text: "Мои тренировки", callback_data: "my_trainings" }],
     [{ text: "Назад", callback_data: "menu" }, { text: "Главное меню", callback_data: "menu" }]
   ]};
 }
@@ -439,23 +399,213 @@ function programListMenu(type) {
 
 function programText(id) {
   const p = PROGRAMS[id];
-  let text = p.name + "\n\n";
-  p.days.forEach((day, i) => {
-    text += "День " + (i + 1) + "\n";
-    day.forEach(x => text += "• " + x + "\n");
-    text += "\n";
+  let t = p.name + "\n\n";
+  p.days.forEach((d, i) => {
+    t += "День " + (i + 1) + "\n";
+    d.forEach(x => t += "• " + x + "\n");
+    t += "\n";
   });
-  return text.trim();
+  return t.trim();
 }
 
 function programMenu(id) {
   return { inline_keyboard: [
-    [{ text: "Начать эту программу", callback_data: "program:" + id }],
+    [{ text: "Сохранить в мои тренировки", callback_data: "saveprog:" + id }],
     [{ text: "Назад", callback_data: id.startsWith("fb_") ? "program_full" : "program_split" }, { text: "Главное меню", callback_data: "menu" }]
   ]};
 }
 
-function foodSuppsMenu() {
+function pickMenu(step) {
+  return { inline_keyboard: [
+    [{ text: "Чуть-чуть", callback_data: "pick:" + step + ":low" }],
+    [{ text: "Нормально", callback_data: "pick:" + step + ":mid" }],
+    [{ text: "Хорошо", callback_data: "pick:" + step + ":high" }],
+    [{ text: "Назад", callback_data: "menu" }]
+  ]};
+}
+
+async function handlePick(env, cq, data) {
+  const [, step, value] = data.split(":");
+  const userId = cq.from.id;
+  const st = await getState(env, userId);
+  const answers = st?.data || {};
+  answers[step] = value;
+
+  const next = { legs: "chest", chest: "back", back: "shoulders", shoulders: "arms" }[step];
+  if (next) {
+    await setState(env, userId, "pick", answers);
+    const names = { chest: "грудь", back: "спину", shoulders: "плечи", arms: "руки" };
+    return editMessage(env, cq.message.chat.id, cq.message.message_id, "Как тренируем " + names[next] + "?", pickMenu(next));
+  }
+
+  const program = buildPickedProgram(answers);
+  await saveProgram(env, userId, program.name, "picked", program);
+  await clearState(env, userId);
+  return editMessage(env, cq.message.chat.id, cq.message.message_id, pickedProgramText(program), navMenu("my_trainings"));
+}
+
+function buildPickedProgram(a) {
+  const days = [];
+  const day1 = ["Жим лёжа 3x8", "Тяга верхнего блока 3x10", "Платформа 3x12"];
+  const day2 = ["Жим на наклонной 3x10", "Тяга горизонтального блока 3x10", "Приседания 3x8"];
+
+  if (a.chest === "high") day1.push("Бабочка 3x15", "Кроссовер 3x15");
+  if (a.back === "high") day1.push("Пуловер 3x12", "Тяга верхнего блока в тренажёре 3x10");
+  if (a.legs === "high") day2.push("Разгибание ног 3x15", "Задняя поверхность бедра 3x12");
+  if (a.shoulders === "high") day2.push("Подъём гантелей 4x15", "Бабочка на заднюю дельту 3x15");
+  if (a.arms === "high") day2.push("Подъём Z-грифа 3x12", "Разгибание на блоке 3x12");
+
+  if (a.chest === "mid") day1.push("Бабочка 3x12");
+  if (a.back === "mid") day1.push("Пуловер 3x12");
+  if (a.legs === "mid") day2.push("Разгибание ног 3x12");
+  if (a.shoulders === "mid") day2.push("Подъём гантелей 3x15");
+  if (a.arms === "mid") day2.push("Подъём Z-грифа 2x12", "Разгибание на блоке 2x12");
+
+  days.push(day1, day2);
+  return { name: "Подобранная программа", days };
+}
+
+function pickedProgramText(program) {
+  return "Готово. Я подобрал и сохранил программу в Мои тренировки.\n\n" + programTextFromObject(program);
+}
+
+function programTextFromObject(p) {
+  let t = p.name + "\n\n";
+  p.days.forEach((d, i) => {
+    t += "День " + (i + 1) + "\n";
+    d.forEach(x => t += "• " + x + "\n");
+    t += "\n";
+  });
+  return t.trim();
+}
+
+async function handleSetInput(env, msg, st) {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id;
+  const exId = st.data.exercise_id;
+  const parts = msg.text.trim().replace(",", ".").split(/\s+/);
+  const weight = Number(parts[0]);
+  const reps = Number(parts[1]);
+
+  if (!weight || !reps) return sendMessage(env, chatId, "Нужно так: 80 8", navMenu("ex:" + exId));
+
+  await ensureVisitOncePer3Hours(env, msg.from);
+  await supabaseInsert(env, "workout_sets", {
+    user_id: userId,
+    exercise_id: exId,
+    exercise_name: EX[exId][0],
+    weight,
+    reps
+  });
+
+  await clearState(env, userId);
+
+  return sendMessage(env, chatId, "Сохранено\n\n" + EX[exId][0] + "\n" + weight + " кг x " + reps, {
+    inline_keyboard: [
+      [{ text: "Ещё подход", callback_data: "set:" + exId }],
+      [{ text: "История", callback_data: "hist:" + exId }],
+      [{ text: "Назад", callback_data: "ex:" + exId }, { text: "Главное меню", callback_data: "menu" }]
+    ]
+  });
+}
+
+async function historyText(env, userId, exId) {
+  const rows = await supabaseGet(env, "workout_sets?user_id=eq." + userId + "&exercise_id=eq." + exId + "&select=weight,reps,created_at&order=created_at.desc&limit=10");
+  let t = "История\n\n" + EX[exId][0] + "\n";
+  if (!rows.length) return t + "\nПока нет записей.";
+  for (const r of rows) t += "\n• " + new Date(r.created_at).toLocaleDateString("ru-RU") + " — " + r.weight + " кг x " + r.reps;
+  return t;
+}
+
+async function analyticsText(env, userId) {
+  const visits = await supabaseGet(env, "gym_visits?user_id=eq." + userId + "&select=id");
+  const sets = await supabaseGet(env, "workout_sets?user_id=eq." + userId + "&select=exercise_name,weight,reps,created_at&order=created_at.desc&limit=20");
+  let t = "Аналитика\n\nПосещений: " + visits.length + "\nПодходов: " + sets.length + "\n";
+  if (sets.length) {
+    t += "\nПоследние подходы:";
+    sets.slice(0, 8).forEach(s => t += "\n• " + s.exercise_name + " — " + s.weight + "x" + s.reps);
+  }
+  return t;
+}
+
+function profileText(from) {
+  return "Профиль\n\nИмя: " + (from.first_name || "—") + "\nUsername: " + (from.username ? "@" + from.username : "—") + "\nID: " + from.id + "\n\nРост, вес, возраст и приватность добавим следующим этапом.";
+}
+
+function friendsMenu() {
+  return { inline_keyboard: [
+    [{ text: "Добавить друга по ID", callback_data: "friend_add" }],
+    [{ text: "Список друзей", callback_data: "friend_list" }],
+    [{ text: "Заявки", callback_data: "friend_requests" }],
+    [{ text: "Приватность тренировок", callback_data: "friend_privacy" }],
+    [{ text: "Сообщение друзьям", callback_data: "friend_msg" }],
+    [{ text: "Назад", callback_data: "menu" }, { text: "Главное меню", callback_data: "menu" }]
+  ]};
+}
+
+async function handleFriendAdd(env, msg) {
+  const friendId = Number(msg.text.trim());
+  if (!friendId) return sendMessage(env, msg.chat.id, "Нужен числовой ID друга.", navMenu("friends"));
+  await supabaseInsert(env, "friends", { user_id: msg.from.id, friend_id: friendId, status: "pending", can_view_workouts: false });
+  await clearState(env, msg.from.id);
+  return sendMessage(env, msg.chat.id, "Заявка другу создана.\n\nКогда добавим уведомления — он сможет принять её в боте.", navMenu("friends"));
+}
+
+async function friendListText(env, userId) {
+  const rows = await supabaseGet(env, "friends?user_id=eq." + userId + "&select=friend_id,status,can_view_workouts");
+  if (!rows.length) return "Список друзей пуст.";
+  let t = "Список друзей";
+  rows.forEach(r => t += "\n• ID " + r.friend_id + " — " + r.status + (r.can_view_workouts ? " — видит тренировки" : ""));
+  return t;
+}
+
+async function friendRequestsText(env, userId) {
+  const rows = await supabaseGet(env, "friends?friend_id=eq." + userId + "&status=eq.pending&select=user_id,status");
+  if (!rows.length) return "Заявок нет.";
+  let t = "Заявки";
+  rows.forEach(r => t += "\n• От ID " + r.user_id);
+  return t;
+}
+
+async function myTrainingsText(env, userId) {
+  const rows = await supabaseGet(env, "custom_programs?user_id=eq." + userId + "&select=id,name,source&order=created_at.desc");
+  if (!rows.length) return "Мои тренировки\n\nПока пусто.";
+  let t = "Мои тренировки\n";
+  rows.forEach(r => t += "\n• " + r.name + " (" + r.source + ")");
+  return t;
+}
+
+async function myTrainingsMenu(env, userId) {
+  const rowsData = await supabaseGet(env, "custom_programs?user_id=eq." + userId + "&select=id,name&order=created_at.desc&limit=20");
+  const rows = rowsData.map(r => [{ text: r.name, callback_data: "myprog:" + r.id }]);
+  rows.push([{ text: "Создать свою программу", callback_data: "custom_program" }]);
+  rows.push([{ text: "Подобрать тренировку", callback_data: "pick" }]);
+  rows.push([{ text: "Назад", callback_data: "menu" }, { text: "Главное меню", callback_data: "menu" }]);
+  return { inline_keyboard: rows };
+}
+
+async function customProgramText(env, id) {
+  const rows = await supabaseGet(env, "custom_programs?id=eq." + id + "&select=name,data&limit=1");
+  if (!rows.length) return "Программа не найдена.";
+  return programTextFromObject(rows[0].data);
+}
+
+function customProgramMenu(id) {
+  return { inline_keyboard: [
+    [{ text: "Редактировать", callback_data: "custom_program" }],
+    [{ text: "Удалить", callback_data: "delprog:" + id }],
+    [{ text: "Назад", callback_data: "my_trainings" }, { text: "Главное меню", callback_data: "menu" }]
+  ]};
+}
+
+async function handleCustomName(env, msg) {
+  const name = msg.text.trim();
+  await saveProgram(env, msg.from.id, name, "custom", { name, days: [["Пока пусто. Редактирование упражнений добавим следующим этапом."]] });
+  await clearState(env, msg.from.id);
+  return sendMessage(env, msg.chat.id, "Программа создана:\n\n" + name, navMenu("my_trainings"));
+}
+
+function foodMenu() {
   return { inline_keyboard: [
     [{ text: "Питание", callback_data: "food" }],
     [{ text: "БАДы", callback_data: "supps" }],
@@ -463,44 +613,22 @@ function foodSuppsMenu() {
   ]};
 }
 
-function navMenu(backTo) {
-  return { inline_keyboard: [[{ text: "Назад", callback_data: backTo }, { text: "Главное меню", callback_data: "menu" }]] };
-}
-
-function profileText(from) {
-  return "Профиль\n\nИмя: " + (from.first_name || "—") + "\nUsername: " + (from.username ? "@" + from.username : "—") + "\nID: " + from.id + "\n\nРост, вес, возраст и приватность добавим следующим этапом.";
-}
-
-function friendsText() {
-  return "Друзья\n\nСкоро добавим:\n• добавить друга по ID\n• заявки в друзья\n• разрешение смотреть тренировки\n• сообщение друзьям";
-}
-
 function nutritionText() {
-  return "ПИТАНИЕ — без занудства\n\n" +
-    "Белок — 2+ грамма на кг веса.\n\n" +
-    "Жиры — около 1–1.2 г на кг веса.\n\n" +
-    "Углеводы — рубильник сушка / масса.\n" +
-    "Сушка → углеводы вниз.\n" +
-    "Масса → углеводы вверх.\n\n" +
-    "Сон — 7–9 часов. Мышцы растут не в зале, а пока ты спишь.";
+  return "Питание\n\nБелок — 2+ грамма на кг веса.\nЖиры — около 1–1.2 г на кг веса.\nУглеводы регулируют сушку или массу.\nСон — 7–9 часов.";
+}
+
+function navMenu(back) {
+  return { inline_keyboard: [[{ text: "Назад", callback_data: back }, { text: "Главное меню", callback_data: "menu" }]] };
 }
 
 async function ensureVisitOncePer3Hours(env, from) {
   await ensureUser(env, from);
-
   const last = await supabaseGet(env, "gym_visits?user_id=eq." + from.id + "&select=visited_at&order=visited_at.desc&limit=1");
-
-  if (last && last.length > 0) {
-    const lastDate = new Date(last[0].visited_at);
-    const diffHours = (Date.now() - lastDate.getTime()) / 1000 / 60 / 60;
-    if (diffHours < VISIT_COOLDOWN_HOURS) return;
+  if (last.length) {
+    const diff = (Date.now() - new Date(last[0].visited_at).getTime()) / 1000 / 60 / 60;
+    if (diff < VISIT_COOLDOWN_HOURS) return;
   }
-
-  await fetch(env.SUPABASE_URL + "/rest/v1/gym_visits", {
-    method: "POST",
-    headers: supabaseHeaders(env, "return=minimal"),
-    body: JSON.stringify({ user_id: from.id })
-  });
+  await supabaseInsert(env, "gym_visits", { user_id: from.id });
 }
 
 async function ensureUser(env, from) {
@@ -508,76 +636,50 @@ async function ensureUser(env, from) {
   await fetch(env.SUPABASE_URL + "/rest/v1/users?on_conflict=id", {
     method: "POST",
     headers: supabaseHeaders(env, "resolution=merge-duplicates"),
-    body: JSON.stringify({
-      id: from.id,
-      username: from.username || null,
-      first_name: from.first_name || null,
-      last_name: from.last_name || null
-    })
+    body: JSON.stringify({ id: from.id, username: from.username || null, first_name: from.first_name || null, last_name: from.last_name || null })
   });
 }
 
-async function saveResultFromText(env, chatId, userId, text) {
-  const parts = text.split(" ");
-  const exId = parts[1];
-  const weight = Number(parts[2]);
-  const reps = Number(parts[3]);
+async function saveProgram(env, userId, name, source, data) {
+  await supabaseInsert(env, "custom_programs", { user_id: userId, name, source, data });
+}
 
-  if (!exId || !EXERCISES[exId] || !weight || !reps) {
-    await sendMessage(env, chatId, "Формат такой:\n/log bench 80 8", mainMenu());
-    return;
-  }
+async function getState(env, userId) {
+  const rows = await supabaseGet(env, "user_state?user_id=eq." + userId + "&select=state,data&limit=1");
+  return rows[0] || null;
+}
 
-  const ex = EXERCISES[exId];
-
-  const res = await fetch(env.SUPABASE_URL + "/rest/v1/workout_results", {
+async function setState(env, userId, state, data) {
+  await fetch(env.SUPABASE_URL + "/rest/v1/user_state?on_conflict=user_id", {
     method: "POST",
-    headers: supabaseHeaders(env, "return=representation"),
-    body: JSON.stringify({
-      telegram_id: userId,
-      exercise: ex.name,
-      weight,
-      reps
-    })
-  });
-
-  if (!res.ok) {
-    await sendMessage(env, chatId, "Не сохранилось.\nСтатус: " + res.status + "\n" + await res.text(), mainMenu());
-    return;
-  }
-
-  await sendMessage(env, chatId, "Записал!\n\n" + ex.name + ": " + weight + " кг × " + reps, {
-    inline_keyboard: [
-      [{ text: "История", callback_data: "hist:" + exId }],
-      [{ text: "Главное меню", callback_data: "menu" }]
-    ]
+    headers: supabaseHeaders(env, "resolution=merge-duplicates"),
+    body: JSON.stringify({ user_id: userId, state, data, updated_at: new Date().toISOString() })
   });
 }
 
-async function historyText(env, userId, exId) {
-  const ex = EXERCISES[exId];
-  const rows = await supabaseGet(env, "workout_results?telegram_id=eq." + userId + "&exercise=eq." + encodeURIComponent(ex.name) + "&select=weight,reps,created_at&order=created_at.desc&limit=10");
-
-  let text = "История\n\n" + ex.name + "\n";
-  if (!rows || rows.length === 0) return text + "\nПока нет записей.";
-
-  for (const r of rows) {
-    text += "\n• " + new Date(r.created_at).toLocaleDateString("ru-RU") + " — " + r.weight + " кг × " + r.reps;
-  }
-  return text;
-}
-
-async function analyticsText(env, userId) {
-  const visits = await supabaseGet(env, "gym_visits?user_id=eq." + userId + "&select=id");
-  const results = await supabaseGet(env, "workout_results?telegram_id=eq." + userId + "&select=id");
-
-  return "Аналитика\n\nПосещений зала: " + (visits ? visits.length : 0) + "\nЗаписей результатов: " + (results ? results.length : 0) + "\n\nГрафики добавим следующим этапом.";
+async function clearState(env, userId) {
+  await supabaseDelete(env, "user_state?user_id=eq." + userId);
 }
 
 async function supabaseGet(env, path) {
   const res = await fetch(env.SUPABASE_URL + "/rest/v1/" + path, { method: "GET", headers: supabaseHeaders(env) });
   if (!res.ok) return [];
   return await res.json();
+}
+
+async function supabaseInsert(env, table, body) {
+  return fetch(env.SUPABASE_URL + "/rest/v1/" + table, {
+    method: "POST",
+    headers: supabaseHeaders(env, "return=minimal"),
+    body: JSON.stringify(body)
+  });
+}
+
+async function supabaseDelete(env, path) {
+  return fetch(env.SUPABASE_URL + "/rest/v1/" + path, {
+    method: "DELETE",
+    headers: supabaseHeaders(env)
+  });
 }
 
 function supabaseHeaders(env, prefer) {
