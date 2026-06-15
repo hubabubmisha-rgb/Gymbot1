@@ -42,7 +42,7 @@ export default {
     navMenu("trainings")
   );
           await editMessage(env, chatId, msgId,
-            "✅ Красавчик, ты в зале!\n\nПозже это будет сохраняться в календарь посещений.",
+            "✅ Красавчик, ты в зале!\n\nПосещение сохранено в базу.",
             navMenu("trainings")
           );
         }
