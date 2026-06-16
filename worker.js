@@ -1944,3 +1944,6 @@ async function clearState(env, userId) {
     }
   );
 }
+async function answerCallback(env, callbackId) {
+  return answerCb(env, callbackId);
+}
