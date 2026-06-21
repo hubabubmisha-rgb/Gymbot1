@@ -697,63 +697,133 @@ async function processUpdate(env,update){
     try{ await answer(env,cq.id); }catch{}
   }
 }
-/* === NADSTROYKA: menu + edit tasks (phone-safe) === */
+/* === NADSTROYKA v3 (phone-safe) === */
 (function(){
+  var NEW_TYPES = ['Отношения','Развлечения','Фильмы'];
+  for (var n=0;n<NEW_TYPES.length;n++){ if (TASK_TYPES.indexOf(NEW_TYPES[n])===-1) TASK_TYPES.splice(TASK_TYPES.length-1,0,NEW_TYPES[n]); }
+  TYPE_PRIORITY['Отношения']=92; TYPE_PRIORITY['Развлечения']=45; TYPE_PRIORITY['Фильмы']=42;
+  if (!TYPE_KW['Отношения']) TYPE_KW['Отношения']=['девушк','парн','свидани','романт','поцелу','обним','секс','минет','куни','анал','интим','флирт','любим','отношени'];
+  if (!TYPE_KW['Развлечения']) TYPE_KW['Развлечения']=['кино','аквапарк','боулинг','караоке','концерт','выставк','музей','аттракцион','каток','квест','прогулк','развлеч'];
+  if (!TYPE_KW['Фильмы']) TYPE_KW['Фильмы']=['посмотреть фильм','посмотреть','фильм','сериал','серию','эпизод','премьер','трейлер','дорам','аниме'];
+
+  function tokenize(s){ return (s ? s : '').toLowerCase().replace(/ё/g,'е').split(/[^a-zа-я0-9]+/i).filter(Boolean); }
+  function kwHit(text, toks, kw){
+    var k = (kw ? kw : '').toLowerCase().replace(/ё/g,'е'); if(!k) return false;
+    if (k.indexOf(' ') !== -1) return text.indexOf(k) !== -1;
+    for (var i=0;i<toks.length;i++){ if (toks[i].indexOf(k)===0) return true; }
+    return false;
+  }
+  detectTaskType = function(title){
+    var text = (title ? title : '').toLowerCase().replace(/ё/g,'е'); var toks = tokenize(title);
+    var best='Другое', bestP=-1;
+    for (var type in TYPE_KW){ var arr=TYPE_KW[type]; if(!arr) continue;
+      for (var i=0;i<arr.length;i++){ if (kwHit(text,toks,arr[i])){ var p=TYPE_PRIORITY[type]?TYPE_PRIORITY[type]:0; if(p>bestP){ bestP=p; best=type; } break; } } }
+    return best;
+  };
+  categorize = async function(env, uid, words, kind){
+    var cats = await dbSelect(env,'eb1_finance_categories','telegram_user_id=eq.'+uid+'&select=id,kind,name');
+    var kws = await dbSelect(env,'eb1_finance_category_keywords','telegram_user_id=eq.'+uid+'&select=category_id,keyword');
+    cats = cats?cats:[]; kws = kws?kws:[];
+    var kindOf={}; for(var i=0;i<cats.length;i++) kindOf[cats[i].id]=cats[i].kind;
+    var joined = words.join(' '); var text = joined.toLowerCase().replace(/ё/g,'е'); var toks = tokenize(joined);
+    for (var j=0;j<kws.length;j++){ if (kindOf[kws[j].category_id]===kind && kwHit(text,toks,kws[j].keyword)) return kws[j].category_id; }
+    for (var c=0;c<cats.length;c++){ if (cats[c].kind===kind && cats[c].name==='Другое') return cats[c].id; }
+    return null;
+  };
+
   askType = async function(env, ctx, data, isNew){
     await setState(env, ctx.uid, 'task:type', data);
-    var rows = []; var r = [];
-    for (var i=0;i<TASK_TYPES.length;i++){
-      var ty = TASK_TYPES[i];
-      r.push(btn(ty===data.type ? ('• ' + ty + ' •') : ty, 'tw:type:' + ty));
-      if (r.length===3){ rows.push(r); r=[]; }
-    }
+    var txt = 'Задача: <b>' + esc(data.title) + '</b>\nПредложенный тип: <b>' + data.type + '</b>';
+    var kb = [ [btn('✅ Верно','tw:type:'+data.type)], [btn('🔄 Поменять тип','tw:changetype')], [btn('⬅️ Назад','tw:back:title'), btn('🏠 В меню','nav:menu')] ];
+    if (isNew && !ctx.msgId) await send(env, ctx.chatId, txt, ikb(kb)); else await screen(env, ctx, txt, ikb(kb));
+  };
+  async function showTypeList(env, ctx){
+    var st = await getState(env, ctx.uid); var data = st.data?st.data:{};
+    var rows=[]; var r=[];
+    for (var i=0;i<TASK_TYPES.length;i++){ var ty=TASK_TYPES[i]; r.push(btn(ty===data.type?('• '+ty+' •'):ty, 'tw:type:'+ty)); if(r.length===3){ rows.push(r); r=[]; } }
     if (r.length) rows.push(r);
-    rows.push([btn('🏠 Меню','nav:menu')]);
-    var txt = 'Задача: <b>' + esc(data.title) + '</b>\nТип (предложен «' + data.type + '», можно поменять):';
-    if (isNew && !ctx.msgId) await send(env, ctx.chatId, txt, ikb(rows)); else await screen(env, ctx, txt, ikb(rows));
+    rows.push([btn('⬅️ Назад','tw:back:type'), btn('🏠 В меню','nav:menu')]);
+    await screen(env, ctx, 'Выбери тип:', ikb(rows));
+  }
+  askDate = async function(env, ctx, data){
+    await setState(env, ctx.uid, 'task:date', data);
+    var np = nowParts(ctx.user.tz);
+    var extra = [btn('Сегодня','tw:date:'+np.dateStr), btn('Завтра','tw:date:'+addDaysStr(np.dateStr,1)), btn('Без даты','tw:date:none')];
+    var cal = buildCalendar(np.y, np.mo, 'tw:cal', extra);
+    cal.inline_keyboard.push([btn('⬅️ Назад','tw:back:type'), btn('🏠 В меню','nav:menu')]);
+    await send(env, ctx.chatId, 'Дата:', cal);
+  };
+  askTime = async function(env, ctx, data){
+    await setState(env, ctx.uid, 'task:time', data);
+    var rows=[]; var r=[];
+    for (var h=6;h<=23;h++){ r.push(btn((String(h).padStart(2,'0'))+':00', 'tw:time:'+h)); if(r.length===4){ rows.push(r); r=[]; } }
+    if (r.length) rows.push(r);
+    rows.push([btn('Без времени','tw:time:none')]);
+    rows.push([btn('⬅️ Назад','tw:back:date'), btn('🏠 В меню','nav:menu')]);
+    await send(env, ctx.chatId, 'Время:', ikb(rows));
+  };
+  askReminders = async function(env, ctx, data){
+    var u = await dbOne(env,'eb1_users','telegram_user_id=eq.'+ctx.uid+'&select=default_reminders');
+    var def = (u && u.default_reminders) ? u.default_reminders.split(',') : ['1d','at'];
+    data.picks = data.picks ? data.picks : def;
+    await setState(env, ctx.uid, 'task:rem', data);
+    var hoursAway = null;
+    if (data.due_date && data.due_date !== 'none'){ var arr = data.due_date.split('-').map(Number).concat([(data.due_hour==null?9:data.due_hour),0,ctx.user.tz]); var f = localToUtc.apply(null, arr); hoursAway=(f.getTime()-Date.now())/3600000; }
+    var rk = reminderPicksKeyboard(data.picks, hoursAway, 'tw');
+    rk.push([btn('⬅️ Назад','tw:back:time'), btn('🏠 В меню','nav:menu')]);
+    await send(env, ctx.chatId, '🔔 Напоминания:', ikb(rk));
   };
 
   var _ht = handleText;
   handleText = async function(env, ctx, text){
-    var low = (text ? text : '').trim().toLowerCase();
-    if (['меню','menu','отмена','cancel','стоп','назад'].indexOf(low) !== -1){
-      await clearState(env, ctx.uid); return showMenu(env, ctx);
-    }
+    var low = (text?text:'').trim().toLowerCase();
+    if (['меню','menu','отмена','cancel','стоп','назад'].indexOf(low) !== -1){ await clearState(env, ctx.uid); return showMenu(env, ctx); }
     return _ht(env, ctx, text);
   };
-
   var _mm = mainMenuKb;
-  mainMenuKb = function(){
-    var kb = _mm();
-    kb.inline_keyboard.splice(3, 0, [btn('✏️ Редактировать задачи','task:all')]);
-    return kb;
-  };
+  mainMenuKb = function(){ var kb=_mm(); kb.inline_keyboard.splice(3,0,[btn('✏️ Редактировать задачи','task:all')]); return kb; };
 
   async function taskAllList(env, ctx){
-    var base = 'telegram_user_id=eq.' + ctx.uid + '&archived=eq.false&status=neq.done';
-    var dated = await dbSelect(env,'eb1_tasks', base + '&due_date=not.is.null&select=id,title,due_date,due_hour&order=due_date.asc,due_hour.asc');
-    var noDate = await dbSelect(env,'eb1_tasks', base + '&due_date=is.null&select=id,title&order=created_at.desc');
-    var t = '✏️ <b>Все задачи</b>\nНажми на задачу, чтобы изменить время, дату или удалить.\n';
-    var kb = [];
-    dated = dated ? dated : [];
-    noDate = noDate ? noDate : [];
-    for (var i=0;i<dated.length;i++){
-      var x = dated[i];
-      var tm = x.due_hour!=null ? (String(x.due_hour).padStart(2,'0') + ':00') : '—';
-      kb.push([btn((fmtShort(x.due_date) + ' ' + tm + ' ' + x.title).slice(0,60), 'task:open:' + x.id)]);
-    }
-    for (var j=0;j<noDate.length;j++){
-      var y = noDate[j];
-      kb.push([btn(('без срока — ' + y.title).slice(0,60), 'task:open:' + y.id)]);
-    }
+    var base = 'telegram_user_id=eq.'+ctx.uid+'&archived=eq.false&status=neq.done';
+    var dated = await dbSelect(env,'eb1_tasks', base+'&due_date=not.is.null&select=id,title,due_date,due_hour&order=due_date.asc,due_hour.asc');
+    var noDate = await dbSelect(env,'eb1_tasks', base+'&due_date=is.null&select=id,title&order=created_at.desc');
+    var t = '✏️ <b>Все задачи</b>\nНажми на задачу, чтобы изменить время, дату или удалить.\n'; var kb=[];
+    dated = dated?dated:[]; noDate = noDate?noDate:[];
+    for (var i=0;i<dated.length;i++){ var x=dated[i]; var tm = x.due_hour!=null ? (String(x.due_hour).padStart(2,'0')+':00') : '—'; kb.push([btn((fmtShort(x.due_date)+' '+tm+' '+x.title).slice(0,60), 'task:open:'+x.id)]); }
+    for (var j=0;j<noDate.length;j++){ var y=noDate[j]; kb.push([btn(('без срока — '+y.title).slice(0,60), 'task:open:'+y.id)]); }
     if (!kb.length) t += '\n<i>активных задач нет</i>';
     kb.push(navRow('nav:menu'));
     await screen(env, ctx, t, ikb(kb));
   }
 
+  runCron = async function(env){
+    var now = new Date();
+    var due = await dbSelect(env,'eb1_reminders','sent=eq.false&fire_at=lte.'+now.toISOString()+'&select=*&limit=100'); due=due?due:[];
+    for (var i=0;i<due.length;i++){ var r=due[i];
+      try{ var kb = ikb([[btn('✅ Выполнено','task:done:'+r.ref_id), btn('⏰ Через час','rem:snooze:'+r.id)],[btn('📅 Перенести','task:move:'+r.ref_id), btn('🗑 Удалить','task:delyes:'+r.ref_id)]]);
+        await send(env, r.telegram_user_id, '🔔 <b>Напоминание</b>\n'+esc(r.label), kb); await dbUpdate(env,'eb1_reminders','id=eq.'+r.id,{ sent:true }); }catch(e){ console.log('rem err', e.message); } }
+    var home = ikb([[btn('🏠 Меню','nav:menu')]]);
+    var users = await dbSelect(env,'eb1_users','select=*'); users=users?users:[];
+    for (var w=0;w<users.length;w++){ var u=users[w];
+      try{ var np = nowParts(u.tz);
+        if (u.briefing_enabled){ var mt=(u.briefing_time?u.briefing_time:'07:00').split(':'); var tgt=(+mt[0])*60+(+mt[1]); if (np.minOfDay>=tgt && np.minOfDay<tgt+5 && u.last_briefing_date!==np.dateStr){ await send(env,u.telegram_user_id, await buildMorning(env,u.telegram_user_id,u.tz), home); await dbUpdate(env,'eb1_users','telegram_user_id=eq.'+u.telegram_user_id,{ last_briefing_date:np.dateStr }); } }
+        if (u.evening_enabled){ var et=(u.evening_time?u.evening_time:'22:00').split(':'); var tgt2=(+et[0])*60+(+et[1]); if (np.minOfDay>=tgt2 && np.minOfDay<tgt2+5 && u.last_evening_date!==np.dateStr){ await send(env,u.telegram_user_id, await buildEvening(env,u.telegram_user_id,u.tz), home); await dbUpdate(env,'eb1_users','telegram_user_id=eq.'+u.telegram_user_id,{ last_evening_date:np.dateStr }); } }
+        var nd = await dbSelect(env,'eb1_tasks','telegram_user_id=eq.'+u.telegram_user_id+'&archived=eq.false&status=neq.done&due_date=is.null&select=id,title,created_at,nudge3_sent,nudge7_sent'); nd=nd?nd:[];
+        for (var k=0;k<nd.length;k++){ var x=nd[k]; var age=(Date.now()-new Date(x.created_at).getTime())/86400000;
+          if (age>=7 && !x.nudge7_sent){ await send(env,u.telegram_user_id,'⏳ Задача «'+esc(x.title)+'» уже 7 дней без срока.\nУдалить или назначить срок?', ikb([[btn('📅 Назначить срок','task:redate:'+x.id), btn('🗑 Удалить','task:delyes:'+x.id)]])); await dbUpdate(env,'eb1_tasks','id=eq.'+x.id,{ nudge7_sent:true }); }
+          else if (age>=3 && !x.nudge3_sent){ await send(env,u.telegram_user_id,'⏳ Задача «'+esc(x.title)+'» уже 3 дня без срока.\nНазначить срок?', ikb([[btn('📅 Назначить срок','task:redate:'+x.id)]])); await dbUpdate(env,'eb1_tasks','id=eq.'+x.id,{ nudge3_sent:true }); }
+        }
+      }catch(e){ console.log('user cron err', u.telegram_user_id, e.message); } }
+  };
+
   var _hc = handleCallback;
   handleCallback = async function(env, ctx, data){
     if (data === 'task:all') return taskAllList(env, ctx);
+    if (data === 'tw:changetype') return showTypeList(env, ctx);
+    if (data === 'tw:back:title'){ await setState(env,ctx.uid,'task:title',{}); return screen(env, ctx, '➕ Новая задача\nВведи название:', ikb([navRow('nav:menu')])); }
+    if (data === 'tw:back:type'){ var s2=await getState(env,ctx.uid); return askType(env, ctx, s2.data?s2.data:{}, false); }
+    if (data === 'tw:back:date'){ var s3=await getState(env,ctx.uid); return askDate(env, ctx, s3.data?s3.data:{}); }
+    if (data === 'tw:back:time'){ var s4=await getState(env,ctx.uid); return askTime(env, ctx, s4.data?s4.data:{}); }
     return _hc(env, ctx, data);
   };
 })();
