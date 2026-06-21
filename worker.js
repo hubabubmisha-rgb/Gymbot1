@@ -2,6 +2,7 @@
    Стек: Telegram Bot API + Supabase (REST) + Cloudflare Workers (cron). Без ИИ.
    ENV: TELEGRAM_BOT_TOKEN, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, WEBHOOK_SECRET, DEFAULT_TIMEZONE */
 
+
 const IMP = {
   green:  { label: '🟢 Низкая',      rank: 0 },
   yellow: { label: '🟡 Средняя',     rank: 1 },
