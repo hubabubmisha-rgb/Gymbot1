@@ -2,6 +2,7 @@
    Акцент на задачах. Без геймификации/профиля/привычек.
    Стек прежний: Telegram + Supabase (REST) + Workers (cron). Без ИИ. */
 
+
 const TASK_TYPES = ['Учёба','Работа','Дом','Семья','Коммуникации','Здоровье','Спорт','Финансы','Платёж','Подписка','Другое'];
 // приоритет: при нескольких совпадениях побеждает больший
 const TYPE_PRIORITY = { 'Платёж':100,'Подписка':95,'Семья':90,'Здоровье':85,'Спорт':80,'Финансы':75,'Учёба':70,'Работа':65,'Дом':60,'Коммуникации':55,'Другое':0 };
@@ -696,39 +697,63 @@ async function processUpdate(env,update){
     try{ await answer(env,cq.id); }catch{}
   }
 }
-/* ───────── НАДСТРОЙКА: меню + редактирование задач ───────── */
-(() => {
-  // кнопка «Меню» на экране выбора типа
+/* === NADSTROYKA: menu + edit tasks (phone-safe) === */
+(function(){
   askType = async function(env, ctx, data, isNew){
     await setState(env, ctx.uid, 'task:type', data);
-    const rows = []; let r = [];
-    for (const ty of TASK_TYPES){ r.push(btn(ty===data.type?`• ${ty} •`:ty, `tw:type:${ty}`)); if(r.length===3){ rows.push(r); r=[]; } }
+    var rows = []; var r = [];
+    for (var i=0;i<TASK_TYPES.length;i++){
+      var ty = TASK_TYPES[i];
+      r.push(btn(ty===data.type ? ('• ' + ty + ' •') : ty, 'tw:type:' + ty));
+      if (r.length===3){ rows.push(r); r=[]; }
+    }
     if (r.length) rows.push(r);
     rows.push([btn('🏠 Меню','nav:menu')]);
-    const txt = Задача: <b>${esc(data.title)}</b>\nТип (предложен «${data.type}», можно поменять):;
+    var txt = 'Задача: <b>' + esc(data.title) + '</b>\nТип (предложен «' + data.type + '», можно поменять):';
     if (isNew && !ctx.msgId) await send(env, ctx.chatId, txt, ikb(rows)); else await screen(env, ctx, txt, ikb(rows));
   };
 
-  // слова-выходы в меню в любой момент
-  const _ht = handleText;
+  var _ht = handleText;
   handleText = async function(env, ctx, text){
-    const low = (text||'').trim().toLowerCase();
-    if (['меню','menu','отмена','cancel','стоп','назад'].includes(low)){ await clearState(env, ctx.uid); return showMenu(env, ctx); }
+    var low = (text ? text : '').trim().toLowerCase();
+    if (['меню','menu','отмена','cancel','стоп','назад'].indexOf(low) !== -1){
+      await clearState(env, ctx.uid); return showMenu(env, ctx);
+    }
     return _ht(env, ctx, text);
   };
 
-  // кнопка «Редактировать задачи» в главном меню
-  const _mm = mainMenuKb;
+  var _mm = mainMenuKb;
   mainMenuKb = function(){
-    const kb = _mm();
+    var kb = _mm();
     kb.inline_keyboard.splice(3, 0, [btn('✏️ Редактировать задачи','task:all')]);
     return kb;
   };
 
-  // экран со ВСЕМИ активными задачами (в т.ч. без даты/времени)
   async function taskAllList(env, ctx){
-    const dated = await dbSelect(env,'eb1_tasks',`telegram_user_id=eq.${ctx.uid}&archived=eq.false&status=neq.done&due_date=not.is.null&select=id,title,due_date,due_hour&order=due_date.asc,due_hour.asc`);
-    const noDate = await dbSelect(env,'eb1_tasks',`telegram_user_id=eq.${ctx.uid}&archived=eq.false&status=neq.done&due_date=is.null&select=id,title&order=created_at.desc`);
-    let t = '✏️ <b>Все задачи</b>\nНажми на задачу, чтобы изменить время, дату или удалить.\n'; const kb = [];
-    for (const x of (dated||[])){ const tm = x.due_hour!=null?`${String(x.due_hour).padStart(2,'0')}:00`:'—'; kb.push([btn(`${fmtShort(x.due_date)} ${tm} ${x.title}`.slice(0,60), `task:open:${x.id}`)]); }
-    for (const x of (noDate||[])){ kb.push([btn(`без срока — ${
+    var base = 'telegram_user_id=eq.' + ctx.uid + '&archived=eq.false&status=neq.done';
+    var dated = await dbSelect(env,'eb1_tasks', base + '&due_date=not.is.null&select=id,title,due_date,due_hour&order=due_date.asc,due_hour.asc');
+    var noDate = await dbSelect(env,'eb1_tasks', base + '&due_date=is.null&select=id,title&order=created_at.desc');
+    var t = '✏️ <b>Все задачи</b>\nНажми на задачу, чтобы изменить время, дату или удалить.\n';
+    var kb = [];
+    dated = dated ? dated : [];
+    noDate = noDate ? noDate : [];
+    for (var i=0;i<dated.length;i++){
+      var x = dated[i];
+      var tm = x.due_hour!=null ? (String(x.due_hour).padStart(2,'0') + ':00') : '—';
+      kb.push([btn((fmtShort(x.due_date) + ' ' + tm + ' ' + x.title).slice(0,60), 'task:open:' + x.id)]);
+    }
+    for (var j=0;j<noDate.length;j++){
+      var y = noDate[j];
+      kb.push([btn(('без срока — ' + y.title).slice(0,60), 'task:open:' + y.id)]);
+    }
+    if (!kb.length) t += '\n<i>активных задач нет</i>';
+    kb.push(navRow('nav:menu'));
+    await screen(env, ctx, t, ikb(kb));
+  }
+
+  var _hc = handleCallback;
+  handleCallback = async function(env, ctx, data){
+    if (data === 'task:all') return taskAllList(env, ctx);
+    return _hc(env, ctx, data);
+  };
+})();
