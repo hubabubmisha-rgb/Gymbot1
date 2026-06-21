@@ -1,3 +1,6 @@
-name = "gymbot1"
+name = "your-existing-worker-name"
 main = "worker.js"
-compatibility_date = "2025-07-15"
+compatibility_date = "2025-01-01"
+
+[triggers]
+crons = ["*/5 * * * *"]
