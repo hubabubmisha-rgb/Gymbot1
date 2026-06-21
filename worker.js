@@ -1,1696 +1,915 @@
-const VISIT_COOLDOWN_HOURS = 3;
+/* ЭЛЕКТРИЧЕСКИЙ МОЗГ — Telegram-бот (Cloudflare Worker)
+   Стек: Telegram Bot API + Supabase (REST) + Cloudflare Workers (cron). Без ИИ.
+   ENV: TELEGRAM_BOT_TOKEN, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, WEBHOOK_SECRET, DEFAULT_TIMEZONE */
 
-const EX = {
-  bench: ["Жим лёжа", "Грудь"],
-  incline_bench: ["Жим на наклонной", "Грудь"],
-  machine_press: ["Жим в тренажёре", "Грудь"],
-  pec_deck: ["Бабочка", "Грудь"],
-  crossover: ["Кроссовер", "Грудь"],
-  dumbbell_press: ["Жим гантелей лёжа", "Грудь"],
-  dips: ["Отжимания на брусьях", "Грудь"],
-  pushups: ["Отжимания", "Грудь"],
-
-  lat_pulldown: ["Тяга верхнего блока", "Спина"],
-  lat_machine: ["Тяга верхнего блока в тренажёре", "Спина"],
-  seated_row: ["Тяга горизонтального блока", "Спина"],
-  pullover: ["Пуловер", "Спина"],
-  pullups: ["Подтягивания", "Спина"],
-  dumbbell_row: ["Тяга гантели одной рукой", "Спина"],
-  deadlift: ["Становая тяга", "Спина"],
-  t_bar: ["Тяга Т-грифа", "Спина"],
-  hyperext: ["Гиперэкстензия", "Спина"],
-
-  squat: ["Приседания", "Ноги"],
-  leg_press: ["Платформа", "Ноги"],
-  leg_ext: ["Разгибание на квадрицепс", "Ноги"],
-  leg_curl: ["Задняя поверхность бедра в тренажёре", "Ноги"],
-  calves: ["Икры", "Ноги"],
-  lunges: ["Выпады", "Ноги"],
-  romanian: ["Румынская тяга", "Ноги"],
-  hack_squat: ["Гакк-приседания", "Ноги"],
-  bulgarian: ["Болгарские выпады", "Ноги"],
-  glute_bridge: ["Ягодичный мост", "Ноги"],
-
-  shoulder_press: ["Жим гантелей сидя", "Плечи", "Передняя дельта"],
-  front_raise: ["Подъём перед собой", "Плечи", "Передняя дельта"],
-  arnold: ["Жим Арнольда", "Плечи", "Передняя дельта"],
-  lateral_raise: ["Подъём гантелей", "Плечи", "Средняя дельта"],
-  cable_lateral: ["Разгибание в кроссовере", "Плечи", "Средняя дельта"],
-  upright_row: ["Тяга к подбородку", "Плечи", "Средняя дельта"],
-  rear_deck: ["Бабочка на заднюю дельту", "Плечи", "Задняя дельта"],
-  face_pull: ["Тяга каната к лицу", "Плечи", "Задняя дельта"],
-
-  scott: ["Скамья Скотта", "Руки", "Бицепс"],
-  zbar_curl: ["Подъём Z-грифа", "Руки", "Бицепс"],
-  dumbbell_sitting: ["Гантели сидя", "Руки", "Бицепс"],
-  dumbbell_standing: ["Гантели стоя", "Руки", "Бицепс"],
-  cable_curl: ["Сгибание на блоке", "Руки", "Бицепс"],
-  hammer: ["Молотки", "Руки", "Предплечье"],
-  reverse_curl: ["Подъём обратным хватом", "Руки", "Предплечье"],
-  farmer: ["Фермерская прогулка", "Руки", "Предплечье"],
-  triceps_pushdown: ["Разгибание на блоке", "Руки", "Трицепс"],
-  overhead_triceps: ["Разгибание на блоке из-за головы", "Руки", "Трицепс"],
-  french_press: ["Французский жим", "Руки", "Трицепс"],
-  close_grip: ["Узкий жим", "Руки", "Трицепс"],
-
-  crunch: ["Скручивания", "Пресс"],
-  leg_raise: ["Подъём ног", "Пресс"],
-  plank: ["Планка", "Пресс"],
-  hanging_leg: ["Подъём ног в висе", "Пресс"],
-  russian_twist: ["Русский твист", "Пресс"],
-
-  bike: ["Велосипед", "Кардио"],
-  walk: ["Ходьба", "Кардио"],
-  run: ["Бег", "Кардио"],
-  ellipse: ["Эллипс", "Кардио"],
-  rope: ["Скакалка", "Кардио"],
-  stairs: ["Степпер", "Кардио"]
+const IMP = {
+  green:  { label: '🟢 Низкая',      rank: 0 },
+  yellow: { label: '🟡 Средняя',     rank: 1 },
+  orange: { label: '🟠 Высокая',     rank: 2 },
+  red:    { label: '🔴 Критическая', rank: 3 },
 };
-
-const GROUPS = {
-  chest: ["Грудь", ["bench", "incline_bench", "machine_press", "pec_deck", "crossover", "dumbbell_press", "dips", "pushups"]],
-  back: ["Спина", ["lat_pulldown", "lat_machine", "seated_row", "pullover", "pullups", "dumbbell_row", "deadlift", "t_bar", "hyperext"]],
-  legs: ["Ноги", ["squat", "leg_press", "leg_ext", "leg_curl", "calves", "lunges", "romanian", "hack_squat", "bulgarian", "glute_bridge"]],
-  abs: ["Пресс", ["crunch", "leg_raise", "plank", "hanging_leg", "russian_twist"]],
-  cardio: ["Кардио", ["bike", "walk", "run", "ellipse", "rope", "stairs"]]
+const STATUS = { todo:'🔴 Не начато', doing:'🟡 В процессе', paused:'⏸ Отложено', done:'✅ Выполнено' };
+const LEVELS = [
+  { min:0,name:'Новичок' },{ min:100,name:'Собирающийся с мыслями' },{ min:300,name:'Организованный' },
+  { min:700,name:'Системный' },{ min:1500,name:'Дисциплинированный' },{ min:3000,name:'Машина продуктивности' },{ min:6000,name:'Легенда' },
+];
+const HABIT_LEVELS = [
+  { min:0,name:'Новичок' },{ min:3,name:'Любитель' },{ min:7,name:'Постоянный' },
+  { min:21,name:'Эксперт' },{ min:50,name:'Мастер' },{ min:100,name:'Легенда' },
+];
+const RESPECT = { task:10, task_important:20, habit:5, streak7:50, streak30:250, goal_closed:100, weekly_viewed:5, all_done:20 };
+const ACH = {
+  task_first:'🥇 Первая задача выполнена', task_10:'🔟 10 задач выполнено', task_100:'💯 100 задач выполнено',
+  habit_first:'🌱 Первая привычка создана', habit_7:'🔥 7 дней привычки', habit_30:'🏆 30 дней привычки',
+  goal_first:'🎯 Первая цель закрыта', week_clean:'🧹 Неделя без просрочек',
+  all_done:'🎉 Все задачи дня выполнены', weekly_first:'📊 Первый недельный разбор',
 };
-
-const SUBGROUPS = {
-  shoulders: {
-    title: "Плечи",
-    subs: {
-      front: ["Передняя дельта", ["shoulder_press", "front_raise", "arnold"]],
-      middle: ["Средняя дельта", ["lateral_raise", "cable_lateral", "upright_row"]],
-      rear: ["Задняя дельта", ["rear_deck", "face_pull"]]
-    }
-  },
-  arms: {
-    title: "Руки",
-    subs: {
-      biceps: ["Бицепс", ["scott", "zbar_curl", "dumbbell_sitting", "dumbbell_standing", "cable_curl"]],
-      triceps: ["Трицепс", ["triceps_pushdown", "overhead_triceps", "french_press", "close_grip"]],
-      forearm: ["Предплечье", ["hammer", "reverse_curl", "farmer"]]
-    }
-  }
-};
-
-const TECH = {
-  bench: "Лопатки сведены и прижаты, небольшой прогиб в пояснице, стопы в полу. Гриф опускай к низу груди, локти ~45°. Ошибки: разведённые локти, отбив от груди, подъём таза.",
-  squat: "Штанга на верх трапеций, ноги чуть шире плеч, носки немного наружу. Таз назад и вниз, колени по направлению носков, спина прямая. Ошибки: круглая спина, колени внутрь, отрыв пяток.",
-  deadlift: "Гриф над серединой стопы, спина прямая, плечи чуть впереди грифа. Тяни ногами, гриф скользит вдоль тела, в верхней точке полное выпрямление без переразгиба. Ошибки: круглая поясница, рывок, гриф далеко от ног.",
-  lat_pulldown: "Грудь вверх, лёгкий прогиб, тяни локтями вниз к низу груди, сводя лопатки. Ошибки: раскачка корпусом, тяга за голову, работа только руками.",
-  seated_row: "Спина прямая, тяни к животу, сводя лопатки, локти вдоль корпуса. Ошибки: округление спины, рывки, отклонение далеко назад.",
-  shoulder_press: "Спина ровная, гантели на уровне ушей, жми вверх не до жёсткого замка. Ошибки: чрезмерный прогиб поясницы, разведение локтей далеко вперёд.",
-  lateral_raise: "Лёгкий наклон вперёд, локти чуть согнуты, поднимай через стороны до уровня плеч, мизинцы чуть выше. Ошибки: заброс весом, подъём выше плеч, плечи к ушам.",
-  zbar_curl: "Локти у корпуса, поднимай за счёт бицепса без раскачки, вверху короткая пауза. Ошибки: читинг корпусом, локти уходят вперёд.",
-  triceps_pushdown: "Локти прижаты к корпусу и неподвижны, разгибай только предплечья, внизу полное выпрямление. Ошибки: локти гуляют, наклон всем телом.",
-  leg_press: "Стопы на ширине плеч, опускай платформу до угла ~90° в коленях, поясница прижата. Ошибки: отрыв таза, полное распрямление с замком коленей.",
-  romanian: "Ноги почти прямые, таз назад, спина прямая, опускай до растяжения задней поверхности бедра. Ошибки: круглая спина, приседание вместо наклона.",
-  plank: "Тело в прямую линию, таз не провисает и не задран, пресс и ягодицы напряжены, дыши ровно. Ошибки: провал поясницы, задранный таз.",
-  pullups: "Хват чуть шире плеч, тяни лопатками вниз, подбородок к перекладине, без рывков. Ошибки: неполная амплитуда, раскачка."
-};
-
+const DEFAULT_CATEGORIES = [
+  { name:'Еда', emoji:'🍔', kind:'expense', kw:['еда','кафе','бургер','мак','ресторан','доставка','обед','ужин','завтрак','продукты','пятёрочка','магнит'] },
+  { name:'Транспорт', emoji:'🚕', kind:'expense', kw:['автобус','метро','такси','бензин','заправка','яндекс такси','проезд','транспорт'] },
+  { name:'Развлечения', emoji:'🎮', kind:'expense', kw:['кино','игра','развлечения','бар','клуб','концерт'] },
+  { name:'Подписки', emoji:'📱', kind:'expense', kw:['кинопоиск','spotify','netflix','chatgpt','подписка','youtube'] },
+  { name:'Одежда', emoji:'👕', kind:'expense', kw:['одежда','обувь','куртка','джинсы','футболка'] },
+  { name:'Учёба', emoji:'📚', kind:'expense', kw:['учёба','книга','курс','учебник','репетитор'] },
+  { name:'Дом', emoji:'🏠', kind:'expense', kw:['дом','квартира','коммуналка','мебель','ремонт'] },
+  { name:'Здоровье', emoji:'💊', kind:'expense', kw:['аптека','лекарства','врач','здоровье','анализы'] },
+  { name:'Подарки', emoji:'🎁', kind:'expense', kw:['подарок','подарки','цветы'] },
+  { name:'Зарплата', emoji:'💰', kind:'income', kw:['зарплата','зп','аванс'] },
+  { name:'Подработка', emoji:'💼', kind:'income', kw:['подработка','фриланс','халтура'] },
+];
+const DEFAULT_TASK_TEMPLATES = ['Тренировка','Учёба','Уборка','Покупки','Лекарства','Оплатить','Позвонить','Сдать домашку','Подготовиться к экзамену'];
+const DEFAULT_HABIT_TEMPLATES = [
+  { title:'Пить воду', type:'number', emoji:'💧' },{ title:'Читать', type:'yesno', emoji:'📖' },
+  { title:'Тренировка', type:'yesno', emoji:'🏃' },{ title:'Чистить зубы вечером', type:'yesno', emoji:'🦷' },
+  { title:'Английский', type:'yesno', emoji:'🇬🇧' },{ title:'Ложиться вовремя', type:'time', emoji:'😴' },
+  { title:'Контроль веса', type:'number', emoji:'⚖️' },{ title:'Растяжка', type:'yesno', emoji:'🧘' },
+];
+const DEFAULT_PAYMENT_TEMPLATES = [
+  { title:'Квартира', emoji:'🏠' },{ title:'Интернет', emoji:'📶' },{ title:'Связь', emoji:'📱' },
+  { title:'Кредитка', emoji:'💳' },{ title:'Кредит', emoji:'🏦' },{ title:'Кинопоиск', emoji:'🎬' },{ title:'Spotify', emoji:'🎵' },
+];
+const DEFAULT_REWARDS = [
+  { title:'🍕 Заказать пиццу', cost:1000 },{ title:'🎮 Купить игру', cost:5000 },{ title:'🛌 Выходной без дел', cost:700 },
+];
 const MOTIVATION = [
-  "Погнали в зал! 💪",
-  "Не пропускай тренировку 🔥",
-  "Ты сильнее, чем думаешь!",
-  "Маленький шаг сегодня — большой результат завтра 🚀",
-  "Дисциплина бьёт мотивацию. Вперёд!"
+  'Полковник Сандерс запустил KFC после 60 лет, получив сотни отказов до первого «да».',
+  'Джоан Роулинг собрала пачку отказов от издательств, прежде чем «Гарри Поттер» стал мировым явлением.',
+  'Маленькое действие каждый день сильнее редкого рывка раз в месяц.',
+  'Олег Тиньков начинал с мелкой торговли и десятков провалов до большого бизнеса.',
+  'Дисциплина — это мост между целями и результатом.',
+  'Джеймс Дайсон сделал 5126 неудачных прототипов пылесоса, и только 5127-й заработал.',
+  'Уолт Дисней слышал, что ему «не хватает воображения», задолго до своей империи.',
+  'Ты не обязан быть великим, чтобы начать, но надо начать, чтобы стать великим.',
+  'Стивен Кинг выбрасывал «Кэрри» в мусор — рукопись достала из ведра жена.',
+  'Лучшее время посадить дерево было 20 лет назад. Второе лучшее — сегодня.',
+  'Томас Эдисон не «провалился» — он нашёл тысячи способов, которые не работают.',
+  'Привычка сильнее мотивации: мотивация уходит, привычка остаётся.',
+  'Каждый эксперт когда-то был новичком, который не сдался.',
+  'Генри Форд банкротился дважды до того, как изменил мир.',
+  'Сегодняшнее «неудобно» — это завтрашнее «легко».',
+  'Не считай дни без срывов — строй систему, в которой срывы не страшны.',
+  'Прогресс важнее совершенства. Сделай чуть-чуть — но сегодня.',
+  'Говард Шульц вырос в бедном квартале и построил Starbucks из идеи, в которую мало кто верил.',
+  'Сила не в том, чтобы не падать, а в том, чтобы вставать на день раньше срыва.',
+  'Дело не в том, как ты начал, а в том, что ты не остановился.',
+  'Маленькие проценты ежедневно складываются в гигантский рост за год.',
+  'Завтра ты скажешь спасибо за то, что не сдался сегодня.',
 ];
 
-const CAT_ORDER = ["Грудь", "Спина", "Ноги", "Плечи", "Руки", "Пресс", "Кардио"];
-const NAME2ID = {};
-for (const id in EX) NAME2ID[EX[id][0].toLowerCase()] = id;
-const CATS = {};
-for (const id in EX) { const g = EX[id][1]; (CATS[g] = CATS[g] || []).push(id); }
+// ── Supabase ──
+async function sb(env, method, path, { body, prefer } = {}) {
+  const res = await fetch(`${env.SUPABASE_URL}/rest/v1/${path}`, {
+    method,
+    headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+      'Content-Type':'application/json', ...(prefer?{Prefer:prefer}:{}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) { const t = await res.text(); throw new Error(`SB ${method} ${path} ${res.status}: ${t}`); }
+  if (res.status===204) return null;
+  const txt = await res.text(); return txt ? JSON.parse(txt) : null;
+}
+const dbSelect = (env,t,q='') => sb(env,'GET',`${t}?${q}`);
+const dbOne = async (env,t,q='') => (await dbSelect(env,t,q))?.[0]||null;
+const dbInsert = (env,t,row) => sb(env,'POST',t,{ body:Array.isArray(row)?row:[row], prefer:'return=representation' });
+const dbInsertOne = async (env,t,row) => (await dbInsert(env,t,row))?.[0]||null;
+const dbUpdate = (env,t,q,patch) => sb(env,'PATCH',`${t}?${q}`,{ body:patch, prefer:'return=representation' });
+const dbDelete = (env,t,q) => sb(env,'DELETE',`${t}?${q}`);
 
-const PROGRAMS = {
-  fb_beginner: p("Фуллбади: новичок", [
-    ["Жим лёжа 3x8", "Тяга верхнего блока 3x10", "Приседания 3x8", "Подъём гантелей 3x12", "Разгибание на блоке 2x12", "Скамья Скотта 2x12"],
-    ["Жим на наклонной 3x10", "Тяга горизонтального блока 3x10", "Платформа 3x12", "Бабочка на заднюю дельту 3x15", "Молотки 2x12", "Французский жим 2x12"]
-  ]),
-  fb_classic: p("Фуллбади: классика", [
-    ["Жим лёжа 4x8", "Тяга верхнего блока 4x10", "Платформа 4x10", "Подъём гантелей 3x12", "Подъём Z-грифа 3x10", "Разгибание на блоке 3x10"],
-    ["Жим на наклонной 4x10", "Тяга горизонтального блока 4x10", "Приседания 4x8", "Бабочка 3x12", "Гантели сидя 3x10", "Французский жим 3x10"]
-  ]),
-  fb_strength: p("Фуллбади: силовая", [
-    ["Жим лёжа 5x5", "Приседания 5x5", "Тяга верхнего блока 4x8", "Жим гантелей сидя 4x6", "Подъём Z-грифа 3x8", "Разгибание на блоке 3x8"],
-    ["Жим на наклонной 4x6", "Платформа 5x8", "Тяга горизонтального блока 4x8", "Французский жим 3x8", "Скамья Скотта 3x8"]
-  ]),
-  fb_home: p("Фуллбади: дом", [
-    ["Отжимания 4x15", "Выпады 4x12", "Планка 3x60", "Скручивания 4x15", "Бег 25"],
-    ["Приседания 4x20", "Отжимания 4x12", "Подъём ног 4x12", "Планка 3x60", "Ходьба 30"]
-  ]),
-  fb_fatloss: p("Фуллбади: жиросжигание", [
-    ["Платформа 4x15", "Жим в тренажёре 3x12", "Тяга верхнего блока 3x12", "Подъём гантелей 3x15", "Скручивания 3x20", "Велосипед 20"],
-    ["Приседания 4x12", "Жим на наклонной 3x12", "Тяга горизонтального блока 3x12", "Бабочка 3x15", "Планка 3x60", "Эллипс 20"]
-  ]),
-  split_ppl: p("Сплит: Push / Pull / Legs", [
-    ["Жим лёжа 4x8", "Жим на наклонной 4x10", "Жим гантелей сидя 3x10", "Подъём гантелей 3x15", "Разгибание на блоке 4x12"],
-    ["Тяга верхнего блока 4x10", "Тяга горизонтального блока 4x10", "Пуловер 3x12", "Бабочка на заднюю дельту 3x15", "Подъём Z-грифа 3x12"],
-    ["Приседания 4x8", "Платформа 4x12", "Разгибание на квадрицепс 3x15", "Задняя поверхность бедра в тренажёре 3x12", "Икры 4x15"]
-  ]),
-  split_upper_lower: p("Сплит: верх / низ", [
-    ["Жим лёжа 4x8", "Тяга верхнего блока 4x10", "Жим на наклонной 3x10", "Тяга горизонтального блока 3x10", "Подъём гантелей 3x15"],
-    ["Приседания 4x8", "Платформа 4x12", "Разгибание на квадрицепс 3x15", "Задняя поверхность бедра в тренажёре 3x12", "Икры 4x15"]
-  ]),
-  split_classic: p("Сплит: грудь / спина / ноги", [
-    ["Жим лёжа 4x8", "Жим на наклонной 4x10", "Жим в тренажёре 3x10", "Бабочка 3x15"],
-    ["Тяга верхнего блока 4x10", "Тяга горизонтального блока 4x10", "Тяга верхнего блока в тренажёре 3x10", "Пуловер 3x12"],
-    ["Приседания 4x8", "Платформа 4x12", "Разгибание на квадрицепс 3x15", "Задняя поверхность бедра в тренажёре 3x12", "Икры 4x15"]
-  ]),
-  split_beginner: p("Сплит: новичок", [
-    ["Жим лёжа 3x10", "Тяга верхнего блока 3x10", "Жим в тренажёре 3x12", "Тяга горизонтального блока 3x12", "Подъём гантелей 3x15"],
-    ["Платформа 4x12", "Разгибание на квадрицепс 3x15", "Задняя поверхность бедра в тренажёре 3x12", "Икры 4x15", "Скручивания 3x15"]
-  ])
-};
+// ── Telegram ──
+async function tg(env, method, payload) {
+  const res = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/${method}`, {
+    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+  return res.json();
+}
+const send = (env,chatId,text,kb) => tg(env,'sendMessage',{ chat_id:chatId, text, parse_mode:'HTML', disable_web_page_preview:true, ...(kb?{reply_markup:kb}:{}) });
+const edit = (env,chatId,msgId,text,kb) => tg(env,'editMessageText',{ chat_id:chatId, message_id:msgId, text, parse_mode:'HTML', disable_web_page_preview:true, ...(kb?{reply_markup:kb}:{}) });
+const answer = (env,cbId,text) => tg(env,'answerCallbackQuery',{ callback_query_id:cbId, ...(text?{text}:{}) });
+const sendPhoto = (env,chatId,url,caption,kb) => tg(env,'sendPhoto',{ chat_id:chatId, photo:url, caption:caption||'', parse_mode:'HTML', ...(kb?{reply_markup:kb}:{}) });
+async function screen(env, ctx, text, kb){
+  if (ctx.msgId){ const r=await edit(env,ctx.chatId,ctx.msgId,text,kb); if(r&&r.ok===false) await send(env,ctx.chatId,text,kb); }
+  else await send(env,ctx.chatId,text,kb);
+}
 
+// ── Клавиатуры / утилиты ──
+const btn = (text,data) => ({ text, callback_data:data });
+const ikb = (rows) => ({ inline_keyboard:rows });
+const navRow = (backData) => [btn('⬅️ Назад', backData||'nav:menu'), btn('🏠 В меню','nav:menu')];
+function esc(s){ return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+const money = (n) => `${Math.round(Number(n)).toLocaleString('ru-RU')} ₽`;
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+// ── Время / таймзона ──
+function tzOffsetMs(date, tz){
+  const dtf = new Intl.DateTimeFormat('en-US',{ timeZone:tz, hour12:false, year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit' });
+  const p = dtf.formatToParts(date).reduce((a,x)=>(a[x.type]=x.value,a),{});
+  return Date.UTC(+p.year,+p.month-1,+p.day,+p.hour,+p.minute,+p.second) - date.getTime();
+}
+function localToUtc(y,mo,d,h,mi,tz){
+  const guess = Date.UTC(y,mo-1,d,h,mi,0);
+  return new Date(guess - tzOffsetMs(new Date(guess),tz));
+}
+function nowParts(tz){
+  const p = new Intl.DateTimeFormat('en-CA',{ timeZone:tz, hour12:false, year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',weekday:'short' })
+    .formatToParts(new Date()).reduce((a,x)=>(a[x.type]=x.value,a),{});
+  const dowMap = { Sun:0,Mon:1,Tue:2,Wed:3,Thu:4,Fri:5,Sat:6 };
+  return { y:+p.year, mo:+p.month, d:+p.day, h:+p.hour, mi:+p.minute, dow:dowMap[p.weekday],
+    dateStr:`${p.year}-${p.month}-${p.day}`, hhmm:`${p.hour}:${p.minute}`, minOfDay:+p.hour*60+ +p.minute };
+}
+const RU_MONTHS = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+function fmtDate(ds){ if(!ds) return 'без даты'; const [y,m,d]=ds.split('-').map(Number); return `${d} ${RU_MONTHS[m-1]}`; }
+function addDaysStr(ds,n){ const [y,m,d]=ds.split('-').map(Number); return new Date(Date.UTC(y,m-1,d+n)).toISOString().slice(0,10); }
+function buildCalendar(y,mo,prefix,extraRow){
+  const first = new Date(Date.UTC(y,mo-1,1));
+  const startDow = (first.getUTCDay()+6)%7;
+  const days = new Date(Date.UTC(y,mo,0)).getUTCDate();
+  const rows = [];
+  rows.push([btn('◀',`${prefix}:nav:${y}:${mo}:-1`), btn(`${RU_MONTHS[mo-1]} ${y}`,'noop'), btn('▶',`${prefix}:nav:${y}:${mo}:1`)]);
+  rows.push(['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].map(w=>btn(w,'noop')));
+  let week=[]; for(let i=0;i<startDow;i++) week.push(btn(' ','noop'));
+  for(let d=1;d<=days;d++){ const ds=`${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`; week.push(btn(String(d),`${prefix}:pick:${ds}`)); if(week.length===7){rows.push(week);week=[];} }
+  if(week.length){ while(week.length<7) week.push(btn(' ','noop')); rows.push(week); }
+  if(extraRow) rows.push(extraRow);
+  return ikb(rows);
+}
+
+// ── State ──
+async function getState(env,uid){ const r=await dbOne(env,'eb1_states',`telegram_user_id=eq.${uid}`); return r||{ telegram_user_id:uid, state:null, data:{} }; }
+async function setState(env,uid,state,data={}){ await sb(env,'POST','eb1_states',{ body:[{ telegram_user_id:uid, state, data, updated_at:new Date().toISOString() }], prefer:'resolution=merge-duplicates' }); }
+async function clearState(env,uid){ await dbUpdate(env,'eb1_states',`telegram_user_id=eq.${uid}`,{ state:null, data:{} }); }
+
+// ── Пользователь / сид ──
+async function ensureUser(env, from){
+  let u = await dbOne(env,'eb1_users',`telegram_user_id=eq.${from.id}`);
+  if(!u) u = await dbInsertOne(env,'eb1_users',{ telegram_user_id:from.id, username:from.username||'', first_name:from.first_name||'', tz:env.DEFAULT_TIMEZONE||'Europe/Moscow' });
+  if(u && !u.seeded) await seedDefaults(env,u.telegram_user_id);
+  return u;
+}
+async function seedDefaults(env,uid){
+  for(const c of DEFAULT_CATEGORIES){
+    const cat = await dbInsertOne(env,'eb1_finance_categories',{ telegram_user_id:uid, name:c.name, emoji:c.emoji, kind:c.kind });
+    if(cat && c.kw?.length) await dbInsert(env,'eb1_finance_category_keywords', c.kw.map(k=>({ telegram_user_id:uid, category_id:cat.id, keyword:k })));
+  }
+  await dbInsert(env,'eb1_task_templates', DEFAULT_TASK_TEMPLATES.map(t=>({ telegram_user_id:uid, title:t })));
+  await dbInsert(env,'eb1_habit_templates', DEFAULT_HABIT_TEMPLATES.map(h=>({ telegram_user_id:uid, ...h })));
+  await dbInsert(env,'eb1_payment_templates', DEFAULT_PAYMENT_TEMPLATES.map(p=>({ telegram_user_id:uid, ...p })));
+  await dbInsert(env,'eb1_rewards', DEFAULT_REWARDS.map(r=>({ telegram_user_id:uid, ...r })));
+  await dbUpdate(env,'eb1_users',`telegram_user_id=eq.${uid}`,{ seeded:true });
+}
+
+// ── Респекты / уровни / ачивки / лог ──
+function levelName(r){ let n=LEVELS[0].name; for(const l of LEVELS) if(r>=l.min) n=l.name; return n; }
+async function addRespect(env,uid,amount,reason){
+  if(!amount) return;
+  await dbInsert(env,'eb1_respect_events',{ telegram_user_id:uid, amount, reason });
+  const u = await dbOne(env,'eb1_users',`telegram_user_id=eq.${uid}&select=respects`);
+  await dbUpdate(env,'eb1_users',`telegram_user_id=eq.${uid}`,{ respects:(u?.respects||0)+amount });
+}
+async function logAct(env,uid,action,detail=''){ await dbInsert(env,'eb1_activity_log',{ telegram_user_id:uid, action, detail }); }
+async function unlock(env,uid,code){ try{ await dbInsert(env,'eb1_achievements',{ telegram_user_id:uid, code }); return ACH[code]||code; }catch{ return null; } }
+async function checkTaskAchievements(env,uid,chatId){
+  const done = await dbSelect(env,'eb1_tasks',`telegram_user_id=eq.${uid}&status=eq.done&select=id`);
+  const n = done?.length||0; const hits=[];
+  if(n>=1) hits.push(await unlock(env,uid,'task_first'));
+  if(n>=10) hits.push(await unlock(env,uid,'task_10'));
+  if(n>=100) hits.push(await unlock(env,uid,'task_100'));
+  for(const h of hits.filter(Boolean)) await send(env,chatId,`🏅 Достижение: <b>${h}</b>`);
+}
+
+// ── Финансы: парсинг / расчёты / графики ──
+async function categorize(env,uid,words){
+  const kws = await dbSelect(env,'eb1_finance_category_keywords',`telegram_user_id=eq.${uid}&select=category_id,keyword`);
+  const text = words.join(' ').toLowerCase();
+  for(const k of (kws||[])) if(text.includes(k.keyword.toLowerCase())) return k.category_id;
+  return null;
+}
+async function parseQuickFinance(env,uid,raw){
+  const t = raw.trim();
+  const m = t.match(/^([+-]?)(\d+(?:[.,]\d+)?)\s*(.*)$/);
+  if(!m) return null;
+  const sign=m[1]; const amount=parseFloat(m[2].replace(',','.'));
+  if(!isFinite(amount)||amount<=0) return null;
+  const rest=(m[3]||'').trim(); const words=rest?rest.split(/\s+/):[];
+  const type = sign==='+'?'income':(sign==='-'?'expense':null);
+  let categoryId=null, description='';
+  if(words.length){ categoryId=await categorize(env,uid,words); description=rest; }
+  return { amount, type, categoryId, description, hasWords:words.length>0 };
+}
+async function computeBalance(env,uid){
+  const u = await dbOne(env,'eb1_users',`telegram_user_id=eq.${uid}&select=start_balance`);
+  const txs = await dbSelect(env,'eb1_finance_transactions',`telegram_user_id=eq.${uid}&select=amount,type`);
+  const adj = await dbSelect(env,'eb1_balance_adjustments',`telegram_user_id=eq.${uid}&select=amount`);
+  let bal = Number(u?.start_balance||0);
+  for(const x of (txs||[])) bal += x.type==='income'?Number(x.amount):-Number(x.amount);
+  for(const a of (adj||[])) bal += Number(a.amount);
+  return bal;
+}
+async function sumTx(env,uid,type,fromDate,toDate){
+  let q=`telegram_user_id=eq.${uid}&type=eq.${type}&select=amount,category_id,tx_date`;
+  if(fromDate) q+=`&tx_date=gte.${fromDate}`; if(toDate) q+=`&tx_date=lte.${toDate}`;
+  return (await dbSelect(env,'eb1_finance_transactions',q))||[];
+}
+function chartUrl(config,w=640,h=420){ return `https://quickchart.io/chart?w=${w}&h=${h}&bkg=white&c=${encodeURIComponent(JSON.stringify(config))}`; }
+function pieChart(title,labels,values){ return chartUrl({ type:'doughnut', data:{ labels, datasets:[{ data:values }] }, options:{ plugins:{ title:{ display:true, text:title } } } }); }
+function lineChart(title,labels,values,label){ return chartUrl({ type:'line', data:{ labels, datasets:[{ label:label||title, data:values, fill:false, tension:0.3 }] }, options:{ plugins:{ title:{ display:true, text:title } } } }); }
+
+// ── Напоминания ──
+const OFFSETS = { '1w':7*24*60, '3d':3*24*60, '1d':24*60, '12h':12*60, '3h':3*60, '1h':60, 'at':0 };
+async function scheduleEventReminders(env,uid,kind,refId,label,fireBaseUtc,picks){
+  const rows=[];
+  for(const key of picks){ const off=OFFSETS[key]; if(off==null) continue;
+    const at=new Date(fireBaseUtc.getTime()-off*60000); if(at.getTime()<=Date.now()) continue;
+    rows.push({ telegram_user_id:uid, kind, ref_id:refId, fire_at:at.toISOString(), label }); }
+  if(rows.length) await dbInsert(env,'eb1_reminders',rows);
+}
+function reminderPicksKeyboard(picks,hoursAway,prefix){
+  const opts=[['1w','За неделю',7*24],['3d','За 3 дня',3*24],['1d','За сутки',24],['12h','За 12 часов',12],['3h','За 3 часа',3],['1h','За час',1],['at','В момент события',0]];
+  const rows=[];
+  for(const [key,lbl,minH] of opts){ if(hoursAway!=null && hoursAway<=minH && key!=='at') continue; const on=picks.includes(key); rows.push([btn(`${on?'☑':'☐'} ${lbl}`,`${prefix}:rt:${key}`)]); }
+  rows.push([btn('✅ Готово',`${prefix}:rdone`)]); return rows;
+}
+function nextRepeatDate(ds,repeat){
+  const [y,m,d]=ds.split('-').map(Number); let dt=new Date(Date.UTC(y,m-1,d));
+  if(repeat==='daily') dt.setUTCDate(dt.getUTCDate()+1);
+  else if(repeat==='weekly') dt.setUTCDate(dt.getUTCDate()+7);
+  else if(repeat==='monthly') dt.setUTCMonth(dt.getUTCMonth()+1);
+  else if(repeat==='yearly') dt.setUTCFullYear(dt.getUTCFullYear()+1);
+  else return null;
+  return dt.toISOString().slice(0,10);
+}
+
+// ═══ ГЛАВНОЕ МЕНЮ ═══
+async function buildToday(env,uid,tz){
+  const np=nowParts(tz); const today=np.dateStr;
+  const tasks = await dbSelect(env,'eb1_tasks',`telegram_user_id=eq.${uid}&status=neq.done&archived=eq.false&or=(due_date.eq.${today},due_date.is.null)&select=title,stage,importance,due_date&order=due_date.asc`);
+  const goals = await dbSelect(env,'eb1_goals',`telegram_user_id=eq.${uid}&status=eq.active&select=title,stage&limit=3`);
+  const habits = await dbSelect(env,'eb1_habits',`telegram_user_id=eq.${uid}&select=id,title`);
+  const spent = (await sumTx(env,uid,'expense',today,today)).reduce((s,x)=>s+Number(x.amount),0);
+  const bal = await computeBalance(env,uid);
+  const u = await dbOne(env,'eb1_users',`telegram_user_id=eq.${uid}&select=respects`);
+  const respects = u?.respects||0;
+  let t='📍 <b>Сегодня</b>\n\n✅ <b>Задачи:</b>\n';
+  if(tasks?.length){ const sorted=[...tasks].sort((a,b)=>(IMP[b.importance]?.rank||0)-(IMP[a.importance]?.rank||0));
+    for(const x of sorted.slice(0,8)) t+=`• ${x.importance==='red'?'🔴 ':''}${esc(x.title)}${x.stage?` — <i>${esc(x.stage)}</i>`:''}\n`; }
+  else t+='<i>нет активных задач</i>\n';
+  t+='\n🎯 <b>Цели:</b>\n';
+  if(goals?.length) for(const g of goals) t+=`• ${esc(g.title)}${g.stage?`\n   Стадия: ${esc(g.stage)}`:''}\n`; else t+='<i>нет активных целей</i>\n';
+  t+='\n🔥 <b>Привычки:</b>\n';
+  if(habits?.length) for(const h of habits.slice(0,6)) t+=`• ${esc(h.title)}\n`; else t+='<i>нет привычек</i>\n';
+  t+=`\n💰 <b>Финансы:</b>\nСегодня: -${money(spent)}\nБаланс: ${money(bal)}\n`;
+  t+=`\n🏆 Респекты: ${respects}\nУровень: ${levelName(respects)}`;
+  const rows=[ [btn('✅ Задачи','task:menu'), btn('🎯 Цели','goal:menu')], [btn('💰 Финансы','fin:menu'), btn('🏆 Профиль','prof:menu')], [btn('⚙️ Настройки','set:menu')] ];
+  const todays = await dbSelect(env,'eb1_tasks',`telegram_user_id=eq.${uid}&due_date=eq.${today}&archived=eq.false&select=status`);
+  if(todays?.length && todays.every(x=>x.status==='done')) rows.unshift([btn('🎉 Я всё сделал','task:alldone')]);
+  return { text:t, kb:ikb(rows) };
+}
+async function showMenu(env,ctx,u){ const { text,kb }=await buildToday(env,ctx.uid,u.tz); await screen(env,ctx,text,kb); }
+
+// ═══ ЗАДАЧИ ═══
+function taskMenuKb(){ return ikb([ [btn('➕ Новая задача','task:new')], [btn('📍 Сегодня','task:list:today'), btn('⚠️ Просрочено','task:overdue')], [btn('📋 Все','task:list:all'), btn('📅 Календарь','task:cal:today')], [btn('📦 Архив','task:archive'), btn('🧩 Шаблоны','task:tpl')], navRow('nav:menu') ]); }
+async function taskMenu(env,ctx){ await screen(env,ctx,'✅ <b>Задачи</b>\nВыбери действие:', taskMenuKb()); }
+async function taskList(env,ctx,scope){
+  const today=nowParts(ctx.user.tz).dateStr;
+  let q=`telegram_user_id=eq.${ctx.uid}&archived=eq.false&status=neq.done&select=id,title,stage,importance,due_date,due_hour&order=importance.desc`;
+  if(scope==='today') q+=`&or=(due_date.eq.${today},due_date.is.null)`;
+  const rows=await dbSelect(env,'eb1_tasks',q);
+  let t=scope==='today'?'📍 <b>Задачи на сегодня</b>\n\n':'📋 <b>Все активные задачи</b>\n\n'; const kb=[];
+  if(!rows?.length) t+='<i>пусто</i>';
+  else for(const x of rows.slice(0,30)){ const star=x.importance==='red'?'🔴':(IMP[x.importance]?.label.split(' ')[0]||''); const when=x.due_date?` · ${fmtDate(x.due_date)}${x.due_hour!=null?` ${String(x.due_hour).padStart(2,'0')}:00`:''}`:''; kb.push([btn(`${star} ${x.title}${when}`.slice(0,60),`task:open:${x.id}`)]); }
+  kb.push(navRow('task:menu')); await screen(env,ctx,t,ikb(kb));
+}
+async function taskOpen(env,ctx,id){
+  const x=await dbOne(env,'eb1_tasks',`telegram_user_id=eq.${ctx.uid}&id=eq.${id}`); if(!x) return taskMenu(env,ctx);
+  let t=`✅ <b>${esc(x.title)}</b>\n\nСтадия: ${esc(x.stage)||'—'}\nСтатус: ${STATUS[x.status]}\nВажность: ${IMP[x.importance]?.label}\n`;
+  t+=`Дата: ${x.due_date?fmtDate(x.due_date):'без даты'}${x.due_hour!=null?`, ${String(x.due_hour).padStart(2,'0')}:00`:''}\n`;
+  if(x.repeat!=='none') t+=`Повтор: ${x.repeat}\n`; if(x.note) t+=`\n📝 Заметка: ${esc(x.note)}\n`;
+  await screen(env,ctx,t,ikb([ [btn('✅ Выполнено',`task:done:${id}`), btn('🔄 Стадия',`task:stage:${id}`)], [btn('🚦 Статус',`task:status:${id}`), btn('🚩 Важность',`task:imp:${id}`)], [btn('📝 Заметка',`task:note:${id}`), btn('📅 Перенести',`task:move:${id}`)], [btn('📜 История стадий',`task:hist:${id}`)], [btn('🗑 Удалить',`task:del:${id}`)], navRow('task:menu') ]));
+}
+async function taskDone(env,ctx,id){
+  const x=await dbOne(env,'eb1_tasks',`telegram_user_id=eq.${ctx.uid}&id=eq.${id}`); if(!x||x.status==='done') return taskMenu(env,ctx);
+  await dbUpdate(env,'eb1_tasks',`id=eq.${id}`,{ status:'done', archived:true, done_at:new Date().toISOString() });
+  await dbDelete(env,'eb1_reminders',`kind=eq.task&ref_id=eq.${id}&sent=eq.false`);
+  const r=(x.importance==='red'||x.importance==='orange')?RESPECT.task_important:RESPECT.task;
+  await addRespect(env,ctx.uid,r,'Задача выполнена'); await logAct(env,ctx.uid,'task_done',x.title);
+  if(x.repeat && x.repeat!=='none' && x.due_date){ const next=nextRepeatDate(x.due_date,x.repeat); if(next) await dbInsert(env,'eb1_tasks',{ telegram_user_id:ctx.uid, title:x.title, stage:x.stage, note:x.note, due_date:next, due_hour:x.due_hour, importance:x.importance, repeat:x.repeat, repeat_custom:x.repeat_custom }); }
+  await answer(env,ctx.cbId,`+${r} респектов`); await checkTaskAchievements(env,ctx.uid,ctx.chatId); await taskMenu(env,ctx);
+}
+async function taskOverdue(env,ctx){
+  const np=nowParts(ctx.user.tz);
+  const rows=await dbSelect(env,'eb1_tasks',`telegram_user_id=eq.${ctx.uid}&archived=eq.false&status=neq.done&due_date=not.is.null&due_date=lt.${np.dateStr}&select=id,title,due_date&order=due_date.asc`);
+  let t='⚠️ <b>Просроченные задачи</b>\n\n'; const kb=[];
+  if(!rows?.length) t+='<i>нет просрочек 🎉</i>'; else for(const x of rows) kb.push([btn(`${x.title} · ${fmtDate(x.due_date)}`.slice(0,60),`task:open:${x.id}`)]);
+  kb.push(navRow('task:menu')); await screen(env,ctx,t,ikb(kb));
+}
+async function taskArchive(env,ctx){
+  const rows=await dbSelect(env,'eb1_tasks',`telegram_user_id=eq.${ctx.uid}&status=eq.done&select=title,done_at&order=done_at.desc&limit=30`);
+  let t='📦 <b>Архив выполненных</b>\n\n'; if(!rows?.length) t+='<i>пусто</i>'; else for(const x of rows) t+=`✅ ${esc(x.title)}\n`;
+  await screen(env,ctx,t,ikb([navRow('task:menu')]));
+}
+async function taskCalendar(env,ctx,scope){
+  const np=nowParts(ctx.user.tz); let from,to,title;
+  if(scope==='today'){from=to=np.dateStr;title='Сегодня';} else if(scope==='tomorrow'){from=to=addDaysStr(np.dateStr,1);title='Завтра';}
+  else if(scope==='week'){from=np.dateStr;to=addDaysStr(np.dateStr,7);title='Неделя';} else {from=np.dateStr;to=addDaysStr(np.dateStr,30);title='Месяц';}
+  const tasks=await dbSelect(env,'eb1_tasks',`telegram_user_id=eq.${ctx.uid}&archived=eq.false&due_date=not.is.null&due_date=gte.${from}&due_date=lte.${to}&select=title,due_date,importance,due_hour&order=due_date.asc`);
+  const pays=await dbSelect(env,'eb1_payments',`telegram_user_id=eq.${ctx.uid}&archived=eq.false&next_date=not.is.null&next_date=gte.${from}&next_date=lte.${to}&select=title,amount,next_date&order=next_date.asc`);
+  let t=`📅 <b>Календарь — ${title}</b>\n\n`; const byDay={};
+  for(const x of (tasks||[])) (byDay[x.due_date]=byDay[x.due_date]||[]).push(`✅ ${esc(x.title)}${x.due_hour!=null?` ${String(x.due_hour).padStart(2,'0')}:00`:''}`);
+  for(const p of (pays||[])) (byDay[p.next_date]=byDay[p.next_date]||[]).push(`💳 ${esc(p.title)} ${money(p.amount)}`);
+  const days=Object.keys(byDay).sort(); if(!days.length) t+='<i>ничего не запланировано</i>'; else for(const d of days) t+=`<b>${fmtDate(d)}</b>\n${byDay[d].join('\n')}\n\n`;
+  await screen(env,ctx,t,ikb([ [btn('Сегодня','task:cal:today'), btn('Завтра','task:cal:tomorrow')], [btn('Неделя','task:cal:week'), btn('Месяц','task:cal:month')], navRow('task:menu') ]));
+}
+async function taskTemplates(env,ctx){
+  const rows=await dbSelect(env,'eb1_task_templates',`telegram_user_id=eq.${ctx.uid}&select=id,title&order=id.asc`);
+  const kb=(rows||[]).map(r=>[btn(`➕ ${r.title}`,`task:tplnew:${r.id}`), btn('🗑',`task:tpldel:${r.id}`)]); kb.push(navRow('task:menu'));
+  await screen(env,ctx,'🧩 <b>Шаблоны задач</b>\nНажми, чтобы создать по шаблону. 🗑 — удалить шаблон.', ikb(kb));
+}
+// мастер задачи
+async function taskWizardStart(env,ctx,presetTitle){
+  if(presetTitle){ await setState(env,ctx.uid,'task:stage',{ title:presetTitle }); return send(env,ctx.chatId,`Задача: <b>${esc(presetTitle)}</b>\nВведи <b>стадию</b> (или «Пропустить»):`, ikb([[btn('Пропустить','tw:stageskip')]])); }
+  await setState(env,ctx.uid,'task:title',{}); await screen(env,ctx,'➕ <b>Новая задача</b>\nВведи <b>название</b>:', ikb([navRow('task:menu')]));
+}
+async function taskWizardText(env,ctx,state,data,text){
+  if(state==='task:title'){ data.title=text.trim(); await setState(env,ctx.uid,'task:stage',data); return send(env,ctx.chatId,'Введи <b>стадию</b> (или «Пропустить»):', ikb([[btn('Пропустить','tw:stageskip')]])); }
+  if(state==='task:stage'){ data.stage=text.trim(); return askTaskDate(env,ctx,data); }
+  if(state==='task:note'){ data.note=text.trim(); return finalizeTask(env,ctx,data); }
+}
+async function askTaskDate(env,ctx,data){ await setState(env,ctx.uid,'task:date',data); const np=nowParts(ctx.user.tz); await send(env,ctx.chatId,'Выбери <b>дату</b>:', buildCalendar(np.y,np.mo,'tw:cal',[btn('Сегодня','tw:date:'+np.dateStr), btn('Завтра','tw:date:'+addDaysStr(np.dateStr,1)), btn('Без даты','tw:date:none')])); }
+async function askTaskTime(env,ctx,data){ await setState(env,ctx.uid,'task:time',data); const rows=[]; let r=[]; for(let h=8;h<=23;h++){ r.push(btn(`${String(h).padStart(2,'0')}:00`,`tw:time:${h}`)); if(r.length===4){rows.push(r);r=[];} } if(r.length) rows.push(r); rows.push([btn('Без времени','tw:time:none')]); await send(env,ctx.chatId,'Выбери <b>время</b> (до часа):', ikb(rows)); }
+async function askTaskImportance(env,ctx,data){ await setState(env,ctx.uid,'task:imp',data); await send(env,ctx.chatId,'Выбери <b>важность</b>:', ikb([ [btn(IMP.green.label,'tw:imp:green'), btn(IMP.yellow.label,'tw:imp:yellow')], [btn(IMP.orange.label,'tw:imp:orange'), btn(IMP.red.label,'tw:imp:red')] ])); }
+async function askTaskRepeat(env,ctx,data){ await setState(env,ctx.uid,'task:repeat',data); await send(env,ctx.chatId,'Повторять задачу?', ikb([ [btn('Не повторять','tw:rep:none'), btn('Каждый день','tw:rep:daily')], [btn('Каждую неделю','tw:rep:weekly'), btn('Каждый месяц','tw:rep:monthly')], [btn('Каждый год','tw:rep:yearly')] ])); }
+async function askTaskReminders(env,ctx,data){
+  data.picks=data.picks||['at']; await setState(env,ctx.uid,'task:rem',data);
+  let hoursAway=null; if(data.due_date&&data.due_date!=='none'){ const fire=localToUtc(...data.due_date.split('-').map(Number),(data.due_hour??9),0,ctx.user.tz); hoursAway=(fire.getTime()-Date.now())/3600000; }
+  await send(env,ctx.chatId,'🔔 Выбери <b>напоминания</b> (можно несколько):', ikb(reminderPicksKeyboard(data.picks,hoursAway,'tw')));
+}
+async function finalizeTask(env,ctx,data){
+  const row={ telegram_user_id:ctx.uid, title:data.title||'Без названия', stage:data.stage||'', note:data.note||'', importance:data.importance||'yellow', repeat:data.repeat||'none', due_date:(data.due_date&&data.due_date!=='none')?data.due_date:null, due_hour:(data.due_hour===0||data.due_hour)?data.due_hour:null };
+  const task=await dbInsertOne(env,'eb1_tasks',row);
+  if(row.due_date){ const fire=localToUtc(...row.due_date.split('-').map(Number),(row.due_hour??9),0,ctx.user.tz); await scheduleEventReminders(env,ctx.uid,'task',task.id,`Задача: ${row.title}`,fire,data.picks||['at']); }
+  await logAct(env,ctx.uid,'task_create',row.title); await clearState(env,ctx.uid);
+  await send(env,ctx.chatId,`✅ Задача сохранена: <b>${esc(row.title)}</b>`, ikb([[btn('Открыть',`task:open:${task.id}`)],[btn('🏠 В меню','nav:menu')]]));
+}
+
+// ═══ ФИНАНСЫ ═══
+function finMenuKb(){ return ikb([ [btn('➖ Расход','fin:add:expense'), btn('➕ Доход','fin:add:income')], [btn('📋 Операции','fin:ops:today'), btn('📊 Аналитика','fin:an')], [btn('💼 Баланс','fin:bal'), btn('🎯 Лимиты','fin:lim')], [btn('💳 Платежи и подписки','fin:pay'), btn('🐷 Сбережения','fin:save')], [btn('🗂 Категории','fin:cat'), btn('📈 Графики','fin:charts')], navRow('nav:menu') ]); }
+async function finMenu(env,ctx){ const bal=await computeBalance(env,ctx.uid); const today=nowParts(ctx.user.tz).dateStr; const spent=(await sumTx(env,ctx.uid,'expense',today,today)).reduce((s,x)=>s+Number(x.amount),0); await screen(env,ctx,`💰 <b>Финансы</b>\nБаланс: <b>${money(bal)}</b>\nСегодня потрачено: ${money(spent)}\n\nБыстрый ввод: «550 еда» или «+3000 подработка».`, finMenuKb()); }
+async function finAddStart(env,ctx,type){ await setState(env,ctx.uid,'fin:amount',{ type }); await screen(env,ctx,`${type==='income'?'➕ Доход':'➖ Расход'}\nВведи сумму (можно с описанием: «550 бургер кинг»):`, ikb([navRow('fin:menu')])); }
+async function finConfirm(env,ctx,parsed){
+  const cat=parsed.categoryId?await dbOne(env,'eb1_finance_categories',`id=eq.${parsed.categoryId}&select=name,emoji`):null;
+  const type=parsed.type||'expense'; await setState(env,ctx.uid,'fin:confirm',{ ...parsed, type });
+  let t=`Похоже, это ${type==='income'?'доход':'расход'}:\n<b>${money(parsed.amount)}</b>\nКатегория: ${cat?`${cat.emoji} ${cat.name}`:'без категории'}\n`;
+  if(parsed.description) t+=`Описание: ${esc(parsed.description)}\n`; t+='\nЗаписать?';
+  await send(env,ctx.chatId,t,ikb([ [btn('✅ Записать','fin:save_tx'), btn('✏️ Категория','fin:pick_cat')], [btn('🔁 Тип','fin:flip'), btn('❌ Отмена','fin:cancel')] ]));
+}
+async function finSaveTx(env,ctx){
+  const st=await getState(env,ctx.uid); const d=st.data; if(!d?.amount) return finMenu(env,ctx);
+  const today=nowParts(ctx.user.tz).dateStr;
+  await dbInsert(env,'eb1_finance_transactions',{ telegram_user_id:ctx.uid, amount:d.amount, type:d.type||'expense', category_id:d.categoryId||null, description:d.description||'', tx_date:today });
+  await logAct(env,ctx.uid,d.type==='income'?'income_add':'expense_add',`${d.amount}`); await clearState(env,ctx.uid);
+  let warn=''; if((d.type||'expense')==='expense'&&d.categoryId) warn=await limitWarning(env,ctx.uid,d.categoryId,ctx.user.tz);
+  const bal=await computeBalance(env,ctx.uid);
+  await send(env,ctx.chatId,`✅ Записано: ${money(d.amount)}\nБаланс: ${money(bal)}${warn}`, finMenuKb());
+}
+async function limitWarning(env,uid,categoryId,tz){
+  const lim=await dbOne(env,'eb1_limits',`telegram_user_id=eq.${uid}&category_id=eq.${categoryId}&select=monthly_limit`); if(!lim) return '';
+  const np=nowParts(tz); const from=`${np.y}-${String(np.mo).padStart(2,'0')}-01`;
+  const spent=(await sumTx(env,uid,'expense',from,np.dateStr)).filter(x=>x.category_id===categoryId).reduce((s,x)=>s+Number(x.amount),0);
+  const pct=Math.round(spent/Number(lim.monthly_limit)*100);
+  return pct>=90?`\n⚠️ Лимит почти исчерпан: ${pct}% (${money(spent)} из ${money(lim.monthly_limit)})`:'';
+}
+async function finOps(env,ctx,scope){
+  const np=nowParts(ctx.user.tz); let from=np.dateStr;
+  if(scope==='week') from=addDaysStr(np.dateStr,-7); else if(scope==='month') from=`${np.y}-${String(np.mo).padStart(2,'0')}-01`;
+  const rows=await dbSelect(env,'eb1_finance_transactions',`telegram_user_id=eq.${ctx.uid}&tx_date=gte.${from}&tx_date=lte.${np.dateStr}&select=id,amount,type,description,category_id&order=created_at.desc&limit=40`);
+  const cats=await dbSelect(env,'eb1_finance_categories',`telegram_user_id=eq.${ctx.uid}&select=id,name,emoji`);
+  const catMap=Object.fromEntries((cats||[]).map(c=>[c.id,`${c.emoji} ${c.name}`]));
+  let t=`📋 <b>Операции (${scope==='today'?'сегодня':scope==='week'?'неделя':'месяц'})</b>\n\n`; const kb=[];
+  if(!rows?.length) t+='<i>пусто</i>'; else for(const x of rows){ const sign=x.type==='income'?'+':'-'; kb.push([btn(`${sign}${Math.round(x.amount)}₽ ${catMap[x.category_id]||''} ${x.description||''}`.slice(0,60),`fin:op:${x.id}`)]); }
+  kb.push([btn('Сегодня','fin:ops:today'), btn('Неделя','fin:ops:week'), btn('Месяц','fin:ops:month')]); kb.push(navRow('fin:menu'));
+  await screen(env,ctx,t,ikb(kb));
+}
+async function finOpOpen(env,ctx,id){
+  const x=await dbOne(env,'eb1_finance_transactions',`telegram_user_id=eq.${ctx.uid}&id=eq.${id}`); if(!x) return finOps(env,ctx,'today');
+  await screen(env,ctx,`${x.type==='income'?'➕ Доход':'➖ Расход'}: ${money(x.amount)}\n${x.description||''}`, ikb([ [btn('✏️ Сумма',`fin:oped:amount:${id}`), btn('✏️ Категория',`fin:oped:cat:${id}`)], [btn('🗑 Удалить',`fin:opdel:${id}`)], navRow('fin:ops:today') ]));
+}
+async function finBalance(env,ctx){
+  const u=await dbOne(env,'eb1_users',`telegram_user_id=eq.${ctx.uid}&select=start_balance`); const bal=await computeBalance(env,ctx.uid);
+  await screen(env,ctx,`💼 <b>Баланс</b>\n\nТекущий: <b>${money(bal)}</b>\nСтартовый: ${money(u?.start_balance||0)}\n\nФормула: стартовый + доходы − расходы + корректировки.`, ikb([ [btn('✏️ Стартовый баланс','fin:setstart')], [btn('➕/➖ Корректировка','fin:adjust')], navRow('fin:menu') ]));
+}
+async function finAnalytics(env,ctx){
+  const np=nowParts(ctx.user.tz); const today=np.dateStr; const wkFrom=addDaysStr(today,-7); const moFrom=`${np.y}-${String(np.mo).padStart(2,'0')}-01`;
+  const prevWkFrom=addDaysStr(today,-14), prevWkTo=addDaysStr(today,-8);
+  const dayE=(await sumTx(env,ctx.uid,'expense',today,today)).reduce((s,x)=>s+ +x.amount,0);
+  const wkE=(await sumTx(env,ctx.uid,'expense',wkFrom,today)).reduce((s,x)=>s+ +x.amount,0);
+  const moRows=await sumTx(env,ctx.uid,'expense',moFrom,today); const moE=moRows.reduce((s,x)=>s+ +x.amount,0);
+  const prevWk=(await sumTx(env,ctx.uid,'expense',prevWkFrom,prevWkTo)).reduce((s,x)=>s+ +x.amount,0);
+  const moInc=(await sumTx(env,ctx.uid,'income',moFrom,today)).reduce((s,x)=>s+ +x.amount,0);
+  const cats=await dbSelect(env,'eb1_finance_categories',`telegram_user_id=eq.${ctx.uid}&select=id,name,emoji`);
+  const catMap=Object.fromEntries((cats||[]).map(c=>[c.id,`${c.emoji} ${c.name}`]));
+  const byCat={}; for(const x of moRows){ const k=x.category_id||0; byCat[k]=(byCat[k]||0)+ +x.amount; }
+  const top=Object.entries(byCat).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const days=Math.max(1,new Set(moRows.map(x=>x.tx_date)).size); const avg=moE/days;
+  let t='📊 <b>Аналитика</b>\n\n';
+  t+=`Сегодня: ${money(dayE)}\nНеделя: ${money(wkE)}\nМесяц: ${money(moE)}\nДоход за месяц: ${money(moInc)}\nСредняя трата в день: ${money(avg)}\nПрогноз месяца: ${money(avg*30)}\nНеделя vs прошлая: ${wkE-prevWk>=0?'+':''}${money(wkE-prevWk)}\n\n<b>Топ категорий (месяц):</b>\n`;
+  if(top.length) for(const [k,v] of top) t+=`• ${catMap[k]||'без категории'} — ${money(v)}\n`; else t+='<i>нет данных</i>\n';
+  await screen(env,ctx,t,ikb([[btn('📈 Графики','fin:charts')], navRow('fin:menu')]));
+}
+async function finCharts(env,ctx){
+  const np=nowParts(ctx.user.tz); const moFrom=`${np.y}-${String(np.mo).padStart(2,'0')}-01`;
+  const rows=await sumTx(env,ctx.uid,'expense',moFrom,np.dateStr);
+  const cats=await dbSelect(env,'eb1_finance_categories',`telegram_user_id=eq.${ctx.uid}&select=id,name`); const catMap=Object.fromEntries((cats||[]).map(c=>[c.id,c.name]));
+  const byCat={}; for(const x of rows){ const k=catMap[x.category_id]||'Прочее'; byCat[k]=(byCat[k]||0)+ +x.amount; }
+  const byDay={}; for(const x of rows){ byDay[x.tx_date]=(byDay[x.tx_date]||0)+ +x.amount; }
+  await answer(env,ctx.cbId,'Рисую графики…');
+  if(Object.keys(byCat).length) await sendPhoto(env,ctx.chatId,pieChart('Расходы по категориям (месяц)',Object.keys(byCat),Object.values(byCat)),'🥧 Категории за месяц');
+  const dks=Object.keys(byDay).sort(); if(dks.length) await sendPhoto(env,ctx.chatId,lineChart('Расходы по дням',dks.map(fmtDate),dks.map(d=>byDay[d]),'Расход'),'📉 По дням');
+  await send(env,ctx.chatId,'Готово.', ikb([navRow('fin:menu')]));
+}
+async function finCategories(env,ctx){
+  const cats=await dbSelect(env,'eb1_finance_categories',`telegram_user_id=eq.${ctx.uid}&select=id,name,emoji&order=id.asc`);
+  const kb=(cats||[]).map(c=>[btn(`${c.emoji} ${c.name}`,`fin:catopen:${c.id}`)]); kb.push([btn('➕ Новая категория','fin:catnew')]); kb.push(navRow('fin:menu'));
+  await screen(env,ctx,'🗂 <b>Категории</b>', ikb(kb));
+}
+async function finCatOpen(env,ctx,id){
+  const c=await dbOne(env,'eb1_finance_categories',`telegram_user_id=eq.${ctx.uid}&id=eq.${id}`); if(!c) return finCategories(env,ctx);
+  const kws=await dbSelect(env,'eb1_finance_category_keywords',`telegram_user_id=eq.${ctx.uid}&category_id=eq.${id}&select=keyword`);
+  await screen(env,ctx,`${c.emoji} <b>${esc(c.name)}</b>\nКлючевые слова: ${(kws||[]).map(k=>k.keyword).join(', ')||'—'}`, ikb([ [btn('✏️ Переименовать',`fin:catren:${id}`), btn('😀 Emoji',`fin:catemoji:${id}`)], [btn('➕ Ключевое слово',`fin:catkw:${id}`)], [btn('🗑 Удалить категорию',`fin:catdel:${id}`)], navRow('fin:cat') ]));
+}
+async function finLimits(env,ctx){
+  const np=nowParts(ctx.user.tz); const from=`${np.y}-${String(np.mo).padStart(2,'0')}-01`;
+  const lims=await dbSelect(env,'eb1_limits',`telegram_user_id=eq.${ctx.uid}&select=category_id,monthly_limit`);
+  const cats=await dbSelect(env,'eb1_finance_categories',`telegram_user_id=eq.${ctx.uid}&select=id,name,emoji`); const catMap=Object.fromEntries((cats||[]).map(c=>[c.id,c]));
+  const moRows=await sumTx(env,ctx.uid,'expense',from,np.dateStr);
+  let t='🎯 <b>Лимиты по категориям (месяц)</b>\n\n';
+  if(!lims?.length) t+='<i>лимитов нет</i>\n'; else for(const l of lims){ const c=catMap[l.category_id]; if(!c) continue; const spent=moRows.filter(x=>x.category_id===l.category_id).reduce((s,x)=>s+ +x.amount,0); const pct=Math.round(spent/Number(l.monthly_limit)*100); t+=`${c.emoji} ${c.name}\nПотрачено ${money(spent)} из ${money(l.monthly_limit)} (${pct}%)\n\n`; }
+  await screen(env,ctx,t,ikb([[btn('➕ Задать лимит','fin:limset')], navRow('fin:menu')]));
+}
+async function finPayments(env,ctx){
+  const rows=await dbSelect(env,'eb1_payments',`telegram_user_id=eq.${ctx.uid}&archived=eq.false&select=id,title,amount,next_date&order=next_date.asc`);
+  const kb=(rows||[]).map(p=>[btn(`${p.title} · ${money(p.amount)} · ${p.next_date?fmtDate(p.next_date):'—'}`.slice(0,60),`fin:payopen:${p.id}`)]);
+  kb.push([btn('➕ Новый платёж','fin:paynew'), btn('🧩 Шаблоны','fin:paytpl')]); kb.push(navRow('fin:menu'));
+  await screen(env,ctx,'💳 <b>Платежи и подписки</b>', ikb(kb));
+}
+async function finPayOpen(env,ctx,id){
+  const p=await dbOne(env,'eb1_payments',`telegram_user_id=eq.${ctx.uid}&id=eq.${id}`); if(!p) return finPayments(env,ctx);
+  let t=`💳 <b>${esc(p.title)}</b>\nСумма: ${money(p.amount)}\nСледующий платёж: ${p.next_date?fmtDate(p.next_date):'—'} ${String(p.next_hour).padStart(2,'0')}:00\nПериодичность: ${p.periodicity}\nВажность: ${IMP[p.importance]?.label}\nНапоминания: ${[p.remind_3d&&'за 3 дня',p.remind_1d&&'за сутки',p.remind_day&&'в день'].filter(Boolean).join(', ')||'—'}`;
+  await screen(env,ctx,t,ikb([ [btn('✅ Оплачено',`fin:paypaid:${id}`), btn('📅 Перенести',`fin:paymove:${id}`)], [btn('✏️ Сумма',`fin:payamt:${id}`)], [btn('🗑 Удалить',`fin:paydel:${id}`)], navRow('fin:pay') ]));
+}
+async function finPayTemplates(env,ctx){
+  const rows=await dbSelect(env,'eb1_payment_templates',`telegram_user_id=eq.${ctx.uid}&select=id,title,emoji&order=id.asc`);
+  const kb=(rows||[]).map(r=>[btn(`➕ ${r.emoji} ${r.title}`,`fin:paytplnew:${r.id}`), btn('🗑',`fin:paytpldel:${r.id}`)]); kb.push(navRow('fin:pay'));
+  await screen(env,ctx,'🧩 <b>Шаблоны платежей</b>', ikb(kb));
+}
+async function payWizardStart(env,ctx,title){
+  if(title){ await setState(env,ctx.uid,'pay:amount',{ title }); return send(env,ctx.chatId,`Платёж: <b>${esc(title)}</b>\nВведи сумму (₽):`, ikb([navRow('fin:pay')])); }
+  await setState(env,ctx.uid,'pay:title',{}); await send(env,ctx.chatId,'➕ Введи <b>название</b> платежа:', ikb([navRow('fin:pay')]));
+}
+async function finSavings(env,ctx){
+  const rows=await dbSelect(env,'eb1_savings_goals',`telegram_user_id=eq.${ctx.uid}&closed=eq.false&select=id,title,target,current&order=id.asc`);
+  let t='🐷 <b>Сбережения</b>\n\n'; const kb=[];
+  if(!rows?.length) t+='<i>нет целей накопления</i>'; else for(const s of rows){ const pct=Math.min(100,Math.round(s.current/Number(s.target)*100)); const f=Math.round(pct/10); t+=`${esc(s.title)}\n${money(s.current)} / ${money(s.target)}\n${'█'.repeat(f)}${'░'.repeat(10-f)} ${pct}%\n\n`; kb.push([btn(`➕ ${s.title}`.slice(0,30),`fin:savadd:${s.id}`), btn('➖',`fin:savsub:${s.id}`), btn('🗑',`fin:savdel:${s.id}`)]); }
+  kb.push([btn('➕ Новая цель накопления','fin:savnew')]); kb.push(navRow('fin:menu'));
+  await screen(env,ctx,t,ikb(kb));
+}
+
+// ═══ ЦЕЛИ ═══
+function goalMenuKb(){ return ikb([ [btn('➕ Новая цель','goal:new')], [btn('📋 Мои цели','goal:list')], [btn('🔥 Привычки','habit:menu')], navRow('nav:menu') ]); }
+async function goalMenu(env,ctx){ await screen(env,ctx,'🎯 <b>Цели</b>', goalMenuKb()); }
+async function goalList(env,ctx){
+  const rows=await dbSelect(env,'eb1_goals',`telegram_user_id=eq.${ctx.uid}&status=eq.active&select=id,title,stage&order=created_at.desc`);
+  const kb=(rows||[]).map(g=>[btn(`${g.title}${g.stage?` · ${g.stage}`:''}`.slice(0,60),`goal:open:${g.id}`)]); kb.push(navRow('goal:menu'));
+  await screen(env,ctx,'📋 <b>Активные цели</b>', ikb(kb));
+}
+async function goalOpen(env,ctx,id){
+  const g=await dbOne(env,'eb1_goals',`telegram_user_id=eq.${ctx.uid}&id=eq.${id}`); if(!g) return goalMenu(env,ctx);
+  let t=`🎯 <b>${esc(g.title)}</b>\nСтадия: ${esc(g.stage)||'—'}\n`; if(g.note) t+=`📝 ${esc(g.note)}\n`;
+  await screen(env,ctx,t,ikb([ [btn('🔄 Стадия',`goal:stage:${id}`), btn('📝 Заметка прогресса',`goal:note:${id}`)], [btn('📜 История стадий',`goal:hist:${id}`), btn('🗒 История заметок',`goal:notes:${id}`)], [btn('🏁 Закрыть цель',`goal:close:${id}`), btn('🗑 Удалить',`goal:del:${id}`)], navRow('goal:list') ]));
+}
+async function goalClose(env,ctx,id){
+  const g=await dbOne(env,'eb1_goals',`telegram_user_id=eq.${ctx.uid}&id=eq.${id}`); if(!g) return goalMenu(env,ctx);
+  await dbUpdate(env,'eb1_goals',`id=eq.${id}`,{ status:'closed', closed_at:new Date().toISOString() });
+  await addRespect(env,ctx.uid,RESPECT.goal_closed,'Цель закрыта'); await logAct(env,ctx.uid,'goal_close',g.title);
+  const a=await unlock(env,ctx.uid,'goal_first'); if(a) await send(env,ctx.chatId,`🏅 ${a}`);
+  await answer(env,ctx.cbId,`+${RESPECT.goal_closed} респектов`); await goalMenu(env,ctx);
+}
+
+// ═══ ПРИВЫЧКИ ═══
+function habitMenuKb(){ return ikb([ [btn('➕ Новая привычка','habit:new')], [btn('📋 Мои привычки','habit:list')], [btn('🧩 Шаблоны','habit:tpl'), btn('📊 Статистика','habit:stats')], navRow('goal:menu') ]); }
+async function habitMenu(env,ctx){ await screen(env,ctx,'🔥 <b>Привычки</b>', habitMenuKb()); }
+async function habitList(env,ctx){
+  const today=nowParts(ctx.user.tz).dateStr;
+  const rows=await dbSelect(env,'eb1_habits',`telegram_user_id=eq.${ctx.uid}&select=id,title&order=id.asc`); const kb=[];
+  for(const h of (rows||[])){ const log=await dbOne(env,'eb1_habit_logs',`habit_id=eq.${h.id}&log_date=eq.${today}&select=id`); kb.push([btn(`${log?'✅':'⬜'} ${h.title}`.slice(0,50),`habit:open:${h.id}`)]); }
+  kb.push(navRow('habit:menu')); await screen(env,ctx,'📋 <b>Мои привычки</b> (✅ — отмечена сегодня)', ikb(kb));
+}
+async function habitStats(env,uid,id){
+  const tz=(await dbOne(env,'eb1_users',`telegram_user_id=eq.${uid}&select=tz`))?.tz||'Europe/Moscow';
+  const today=nowParts(tz).dateStr; const from=addDaysStr(today,-29);
+  const logs=await dbSelect(env,'eb1_habit_logs',`habit_id=eq.${id}&log_date=gte.${from}&log_date=lte.${today}&done=eq.true&select=log_date`);
+  const set=new Set((logs||[]).map(l=>l.log_date));
+  let streak=0, cur=today; while(set.has(cur)){ streak++; cur=addDaysStr(cur,-1); }
+  let cal=''; for(let i=29;i>=0;i--){ const d=addDaysStr(today,-i); cal+=set.has(d)?'🟩':'⬜'; if((29-i)%7===6) cal+='\n'; }
+  return { streak, total:set.size, last30:'Календарь (30 дней):\n'+cal };
+}
+async function habitOpen(env,ctx,id){
+  const h=await dbOne(env,'eb1_habits',`telegram_user_id=eq.${ctx.uid}&id=eq.${id}`); if(!h) return habitMenu(env,ctx);
+  const { streak,total,last30 }=await habitStats(env,ctx.uid,id);
+  const lvl=HABIT_LEVELS.reduce((a,l)=>streak>=l.min?l.name:a,HABIT_LEVELS[0].name);
+  let t=`🔥 <b>${esc(h.title)}</b>\nТип: ${h.type==='yesno'?'да/нет':h.type==='number'?'числовая':'временная'}\n`;
+  if(h.type==='number'&&h.target_number) t+=`Цель: ${h.target_number}\n`; if(h.type==='time'&&h.target_time) t+=`Цель: до ${h.target_time}\n`;
+  t+=`Серия: 🔥 ${streak} дн.\nРекорд: 🏆 ${Math.max(h.best_streak,streak)} дн.\nЗа 30 дней: ${total} (${Math.round(total/30*100)}%)\nУровень: ${lvl}\n\n${last30}`;
+  await screen(env,ctx,t,ikb([ [btn('✅ Отметить сегодня',`habit:log:${id}`), btn('❌ Снять',`habit:unlog:${id}`)], [btn('⏰ Напоминание',`habit:remind:${id}`), btn('🗑 Удалить',`habit:del:${id}`)], navRow('habit:list') ]));
+}
+async function habitLog(env,ctx,id,done){
+  const today=nowParts(ctx.user.tz).dateStr;
+  if(done){
+    await sb(env,'POST','eb1_habit_logs',{ body:[{ telegram_user_id:ctx.uid, habit_id:id, log_date:today, done:true }], prefer:'resolution=merge-duplicates' });
+    await addRespect(env,ctx.uid,RESPECT.habit,'Привычка выполнена');
+    const { streak }=await habitStats(env,ctx.uid,id); const h=await dbOne(env,'eb1_habits',`id=eq.${id}&select=best_streak`);
+    if(streak>(h?.best_streak||0)) await dbUpdate(env,'eb1_habits',`id=eq.${id}`,{ best_streak:streak });
+    if(streak===7){ await addRespect(env,ctx.uid,RESPECT.streak7,'7 дней'); const a=await unlock(env,ctx.uid,'habit_7'); if(a) await send(env,ctx.chatId,`🏅 ${a}`); }
+    if(streak===30){ await addRespect(env,ctx.uid,RESPECT.streak30,'30 дней'); const a=await unlock(env,ctx.uid,'habit_30'); if(a) await send(env,ctx.chatId,`🏅 ${a}`); }
+    await logAct(env,ctx.uid,'habit_done',String(id)); await answer(env,ctx.cbId,`🔥 Серия: ${streak}`);
+  } else { await dbDelete(env,'eb1_habit_logs',`habit_id=eq.${id}&log_date=eq.${today}`); await answer(env,ctx.cbId,'Отметка снята'); }
+  await habitOpen(env,ctx,id);
+}
+async function habitTemplates(env,ctx){
+  const rows=await dbSelect(env,'eb1_habit_templates',`telegram_user_id=eq.${ctx.uid}&select=id,title,emoji&order=id.asc`);
+  const kb=(rows||[]).map(r=>[btn(`➕ ${r.emoji} ${r.title}`,`habit:tplnew:${r.id}`), btn('🗑',`habit:tpldel:${r.id}`)]); kb.push(navRow('habit:menu'));
+  await screen(env,ctx,'🧩 <b>Шаблоны привычек</b>', ikb(kb));
+}
+async function habitStatsScreen(env,ctx){
+  const rows=await dbSelect(env,'eb1_habits',`telegram_user_id=eq.${ctx.uid}&select=id,title,best_streak`);
+  let best=null, bestStreak=-1; const cur=[];
+  for(const h of (rows||[])){ const { streak }=await habitStats(env,ctx.uid,h.id); cur.push(`• ${h.title}: 🔥 ${streak} (рекорд ${Math.max(h.best_streak,streak)})`); if(streak>bestStreak){ bestStreak=streak; best=h.title; } }
+  let t='📊 <b>Статистика привычек</b>\n\n'+(best?`Лучшая серия сейчас: ${best} (${bestStreak} дн.)\n\n`:'')+(cur.join('\n')||'<i>нет привычек</i>');
+  await screen(env,ctx,t,ikb([navRow('habit:menu')]));
+}
+async function finalizeHabit(env,ctx,data){
+  const row={ telegram_user_id:ctx.uid, title:data.title, type:data.type||'yesno', target_number:data.target||null, target_time:data.target_time||null };
+  const h=await dbInsertOne(env,'eb1_habits',row); await logAct(env,ctx.uid,'habit_create',row.title); const a=await unlock(env,ctx.uid,'habit_first'); await clearState(env,ctx.uid);
+  await send(env,ctx.chatId,`🔥 Привычка создана: <b>${esc(row.title)}</b>${a?`\n🏅 ${a}`:''}`, ikb([[btn('Открыть',`habit:open:${h.id}`)],[btn('🏠 В меню','nav:menu')]]));
+}
+
+// ═══ ПРОФИЛЬ ═══
+async function profMenu(env,ctx){
+  const u=await dbOne(env,'eb1_users',`telegram_user_id=eq.${ctx.uid}&select=respects`); const r=u?.respects||0;
+  await screen(env,ctx,`🏆 <b>Профиль</b>\n\nРеспекты: <b>${r}</b>\nУровень: ${levelName(r)}`, ikb([ [btn('🏅 Достижения','prof:ach'), btn('🛍 Награды','prof:rewards')], [btn('🕘 История активности','prof:act'), btn('📦 Архив задач','task:archive')], [btn('🎯 Закрытые цели','prof:goals'), btn('📊 Статистика привычек','habit:stats')], navRow('nav:menu') ]));
+}
+async function profAch(env,ctx){
+  const got=await dbSelect(env,'eb1_achievements',`telegram_user_id=eq.${ctx.uid}&select=code`); const set=new Set((got||[]).map(a=>a.code));
+  let t='🏅 <b>Достижения</b>\n\n'; for(const [code,label] of Object.entries(ACH)) t+=`${set.has(code)?'✅':'🔒'} ${label}\n`;
+  await screen(env,ctx,t,ikb([navRow('prof:menu')]));
+}
+async function profRewards(env,ctx){
+  const u=await dbOne(env,'eb1_users',`telegram_user_id=eq.${ctx.uid}&select=respects`);
+  const rows=await dbSelect(env,'eb1_rewards',`telegram_user_id=eq.${ctx.uid}&select=id,title,cost&order=cost.asc`);
+  const kb=(rows||[]).map(r=>[btn(`${r.title} — ${r.cost}`.slice(0,40),`prof:buy:${r.id}`), btn('🗑',`prof:rewdel:${r.id}`)]); kb.push([btn('➕ Новая награда','prof:rewnew')]); kb.push(navRow('prof:menu'));
+  await screen(env,ctx,`🛍 <b>Магазин наград</b>\nУ тебя: ${u?.respects||0} респектов`, ikb(kb));
+}
+async function profBuy(env,ctx,id){
+  const r=await dbOne(env,'eb1_rewards',`telegram_user_id=eq.${ctx.uid}&id=eq.${id}`); const u=await dbOne(env,'eb1_users',`telegram_user_id=eq.${ctx.uid}&select=respects`); if(!r) return profRewards(env,ctx);
+  if((u?.respects||0)<r.cost){ await answer(env,ctx.cbId,'Недостаточно респектов'); return; }
+  await dbUpdate(env,'eb1_users',`telegram_user_id=eq.${ctx.uid}`,{ respects:u.respects-r.cost });
+  await dbInsert(env,'eb1_reward_purchases',{ telegram_user_id:ctx.uid, reward_id:id, title:r.title, cost:r.cost });
+  await logAct(env,ctx.uid,'reward_buy',r.title); await answer(env,ctx.cbId,`Куплено: ${r.title}`); await profRewards(env,ctx);
+}
+async function profActivity(env,ctx){
+  const rows=await dbSelect(env,'eb1_activity_log',`telegram_user_id=eq.${ctx.uid}&select=action,detail&order=created_at.desc&limit=25`);
+  const names={ task_create:'➕ задача', task_done:'✅ задача', task_delete:'🗑 задача', goal_create:'🎯 цель', goal_close:'🏁 цель', habit_create:'🌱 привычка', habit_done:'🔥 привычка', expense_add:'➖ расход', income_add:'➕ доход', finance_delete:'🗑 операция', payment_create:'💳 платёж', payment_paid:'✅ платёж', reward_buy:'🛍 награда' };
+  let t='🕘 <b>История активности</b>\n\n'; if(!rows?.length) t+='<i>пусто</i>'; else for(const a of rows) t+=`${names[a.action]||a.action} ${a.detail?esc(a.detail):''}\n`;
+  await screen(env,ctx,t,ikb([navRow('prof:menu')]));
+}
+async function profGoals(env,ctx){
+  const rows=await dbSelect(env,'eb1_goals',`telegram_user_id=eq.${ctx.uid}&status=eq.closed&select=title,stage&order=closed_at.desc&limit=20`);
+  let t='🎯 <b>Закрытые цели</b>\n\n'; if(!rows?.length) t+='<i>пока нет</i>'; else for(const g of rows) t+=`🏁 ${esc(g.title)}${g.stage?` — ${esc(g.stage)}`:''}\n`;
+  await screen(env,ctx,t,ikb([navRow('prof:menu')]));
+}
+
+// ═══ НАСТРОЙКИ ═══
+async function setMenu(env,ctx){
+  const u=await dbOne(env,'eb1_users',`telegram_user_id=eq.${ctx.uid}`);
+  await screen(env,ctx,`⚙️ <b>Настройки</b>\n\nЧасовой пояс: ${u.tz}\nУтренний брифинг: ${u.briefing_enabled?'вкл':'выкл'} в ${u.briefing_time}\nНедельный разбор: ${u.weekly_enabled?'вкл':'выкл'}, ${['Вс','Пн','Вт','Ср','Чт','Пт','Сб'][u.weekly_dow]} ${u.weekly_time}`, ikb([ [btn(u.briefing_enabled?'🔕 Выключить брифинг':'🔔 Включить брифинг','set:brieftoggle')], [btn('🕗 Время брифинга','set:brieftime')], [btn(u.weekly_enabled?'🔕 Выключить недельный':'🔔 Включить недельный','set:weeklytoggle')], [btn('🌍 Часовой пояс','set:tz')], navRow('nav:menu') ]));
+}
+
+// ═══ БРИФИНГ / НЕДЕЛЬНЫЙ ═══
+async function buildBriefing(env,uid,tz){
+  const np=nowParts(tz); const today=np.dateStr;
+  const tasks=await dbSelect(env,'eb1_tasks',`telegram_user_id=eq.${uid}&archived=eq.false&status=neq.done&or=(due_date.eq.${today},due_date.is.null)&select=title,stage,importance,note&order=importance.desc`);
+  const goals=await dbSelect(env,'eb1_goals',`telegram_user_id=eq.${uid}&status=eq.active&select=title,stage&limit=5`);
+  const habits=await dbSelect(env,'eb1_habits',`telegram_user_id=eq.${uid}&select=title&limit=10`);
+  const pays=await dbSelect(env,'eb1_payments',`telegram_user_id=eq.${uid}&archived=eq.false&next_date=not.is.null&next_date=gte.${today}&next_date=lte.${addDaysStr(today,3)}&select=title,amount,next_date&order=next_date.asc`);
+  const bal=await computeBalance(env,uid); const spent=(await sumTx(env,uid,'expense',today,today)).reduce((s,x)=>s+ +x.amount,0);
+  const u=await dbOne(env,'eb1_users',`telegram_user_id=eq.${uid}&select=respects`);
+  let t='Доброе утро ☀️\n\n📌 <b>Задачи на сегодня:</b>\n';
+  if(tasks?.length) tasks.slice(0,10).forEach((x,i)=>{ t+=`${i+1}. ${x.importance==='red'?'🔴 ':''}${esc(x.title)}\n${x.stage?`   Стадия: ${esc(x.stage)}\n`:''}${x.note?`   📝 ${esc(x.note)}\n`:''}   Важность: ${IMP[x.importance]?.label}\n`; }); else t+='<i>задач нет</i>\n';
+  t+='\n🎯 <b>Цели:</b>\n'+((goals?.length)?goals.map(g=>`• ${esc(g.title)}${g.stage?` — ${esc(g.stage)}`:''}`).join('\n'):'<i>нет</i>')+'\n';
+  t+='\n🔥 <b>Привычки:</b>\n'+((habits?.length)?habits.map(h=>`• ${esc(h.title)}`).join('\n'):'<i>нет</i>')+'\n';
+  t+=`\n💰 <b>Финансы:</b>\nСегодня потрачено: ${money(spent)}\nБаланс: ${money(bal)}\n`;
+  t+='\n🔔 <b>Скоро платежи:</b>\n'+((pays?.length)?pays.map(p=>`• ${fmtDate(p.next_date)} — ${esc(p.title)} ${money(p.amount)}`).join('\n'):'<i>нет</i>')+'\n';
+  t+=`\n🏆 Респекты: ${u?.respects||0}\nУровень: ${levelName(u?.respects||0)}\n\n💬 <b>Мотивация дня:</b>\n${pick(MOTIVATION)}`;
+  return t;
+}
+async function buildWeekly(env,uid,tz){
+  const np=nowParts(tz); const today=np.dateStr; const from=addDaysStr(today,-7);
+  const closed=await dbSelect(env,'eb1_tasks',`telegram_user_id=eq.${uid}&status=eq.done&done_at=gte.${from}T00:00:00&select=title`);
+  const created=await dbSelect(env,'eb1_tasks',`telegram_user_id=eq.${uid}&created_at=gte.${from}T00:00:00&select=id`);
+  const overdue=await dbSelect(env,'eb1_tasks',`telegram_user_id=eq.${uid}&status=neq.done&archived=eq.false&due_date=not.is.null&due_date=lt.${today}&select=id`);
+  const inc=(await sumTx(env,uid,'income',from,today)).reduce((s,x)=>s+ +x.amount,0);
+  const expRows=await sumTx(env,uid,'expense',from,today); const exp=expRows.reduce((s,x)=>s+ +x.amount,0);
+  const cats=await dbSelect(env,'eb1_finance_categories',`telegram_user_id=eq.${uid}&select=id,name,emoji`); const catMap=Object.fromEntries((cats||[]).map(c=>[c.id,`${c.emoji} ${c.name}`]));
+  const byCat={}; for(const x of expRows){ const k=x.category_id||0; byCat[k]=(byCat[k]||0)+ +x.amount; } const top=Object.entries(byCat).sort((a,b)=>b[1]-a[1])[0];
+  const goals=await dbSelect(env,'eb1_goals',`telegram_user_id=eq.${uid}&status=eq.active&select=title,stage&limit=5`);
+  const u=await dbOne(env,'eb1_users',`telegram_user_id=eq.${uid}&select=respects`);
+  let t='📊 <b>Итоги недели</b>\n\n';
+  t+=`✅ Закрытые задачи: ${closed?.length||0}\n🆕 Новые: ${created?.length||0}\n⚠️ Просрочено: ${overdue?.length||0}\n\n💰 <b>Финансы:</b>\nДоходы: ${money(inc)}\nРасходы: ${money(exp)}\n`;
+  if(top) t+=`Больше всего: ${catMap[top[0]]||'без категории'} — ${money(top[1])}\n`;
+  t+='\n🎯 <b>Цели:</b>\n'+((goals?.length)?goals.map(g=>`• ${esc(g.title)}${g.stage?` — ${esc(g.stage)}`:''}`).join('\n'):'<i>нет</i>')+`\n\n🏆 Респекты всего: ${u?.respects||0}`;
+  return t;
+}
+
+// ═══ ОБРАБОТКА ТЕКСТА ═══
+async function handleText(env,ctx,text){
+  const st=await getState(env,ctx.uid); const state=st.state; const data=st.data||{};
+  if(state && state.startsWith('task:') && (state==='task:title'||state==='task:stage'||state==='task:note')) return taskWizardText(env,ctx,state,data,text);
+  if(state==='fin:amount'){ const parsed=await parseQuickFinance(env,ctx.uid,text); if(!parsed) return send(env,ctx.chatId,'Не понял сумму. Введи число, напр. «550 еда».'); parsed.type=data.type||parsed.type||'expense'; return finConfirm(env,ctx,parsed); }
+  if(state){ if(await extraTextStep(env,ctx,state,data,text)) return; if(await genericTextStep(env,ctx,state,data,text)) return; }
+  const parsed=await parseQuickFinance(env,ctx.uid,text); if(parsed) return finConfirm(env,ctx,parsed);
+  await send(env,ctx.chatId,'Не понял. Открой меню:', ikb([[btn('🏠 В меню','nav:menu')]]));
+}
+async function extraTextStep(env,ctx,state,data,text){
+  const t=text.trim();
+  if(state==='fin:opamt'){ await dbUpdate(env,'eb1_finance_transactions',`id=eq.${data.id}`,{ amount:parseFloat(t.replace(',','.'))||0 }); await clearState(env,ctx.uid); await send(env,ctx.chatId,'✅ Сумма обновлена', ikb([[btn('Операции','fin:ops:today')]])); return true; }
+  if(state==='fin:opcat'){ const cat=await dbOne(env,'eb1_finance_categories',`telegram_user_id=eq.${ctx.uid}&name=ilike.${encodeURIComponent(t)}&select=id`); if(cat) await dbUpdate(env,'eb1_finance_transactions',`id=eq.${data.id}`,{ category_id:cat.id }); await clearState(env,ctx.uid); await send(env,ctx.chatId,'✅ Категория обновлена', ikb([[btn('Операции','fin:ops:today')]])); return true; }
+  if(state==='habit:remind'){ if(/^\d{1,2}:\d{2}$/.test(t)) await dbUpdate(env,'eb1_habits',`id=eq.${data.id}`,{ reminder_time:t.padStart(5,'0') }); await clearState(env,ctx.uid); await send(env,ctx.chatId,'✅ Напоминание задано', ikb([[btn('Открыть',`habit:open:${data.id}`)]])); return true; }
+  return false;
+}
+async function genericTextStep(env,ctx,state,data,text){
+  const t=text.trim();
+  const done=async(msg,kb)=>{ await clearState(env,ctx.uid); await send(env,ctx.chatId,msg,kb); };
+  switch(state){
+    case 'goal:new': { const g=await dbInsertOne(env,'eb1_goals',{ telegram_user_id:ctx.uid, title:t }); await logAct(env,ctx.uid,'goal_create',t); await done(`🎯 Цель создана: <b>${esc(t)}</b>`, ikb([[btn('Открыть',`goal:open:${g.id}`)],[btn('🏠 В меню','nav:menu')]])); return true; }
+    case 'goal:stage': { const g=await dbOne(env,'eb1_goals',`id=eq.${data.id}&telegram_user_id=eq.${ctx.uid}`); await dbInsert(env,'eb1_goal_stage_history',{ telegram_user_id:ctx.uid, goal_id:data.id, old_stage:g?.stage||'', new_stage:t }); await dbUpdate(env,'eb1_goals',`id=eq.${data.id}`,{ stage:t }); await done('✅ Стадия обновлена', ikb([[btn('Открыть',`goal:open:${data.id}`)]])); return true; }
+    case 'goal:note': { await dbInsert(env,'eb1_goal_notes',{ telegram_user_id:ctx.uid, goal_id:data.id, text:t }); await done('✅ Заметка прогресса добавлена', ikb([[btn('Открыть',`goal:open:${data.id}`)]])); return true; }
+    case 'habit:new': { data.title=t; await setState(env,ctx.uid,'habit:type',data); await send(env,ctx.chatId,'Тип привычки?', ikb([[btn('✅ Да/нет','ht:type:yesno')],[btn('🔢 Числовая','ht:type:number')],[btn('⏰ Временная','ht:type:time')]])); return true; }
+    case 'habit:number': { data.target=parseFloat(t.replace(',','.'))||null; await finalizeHabit(env,ctx,data); return true; }
+    case 'habit:time': { data.target_time=t; await finalizeHabit(env,ctx,data); return true; }
+    case 'pay:title': { data.title=t; await setState(env,ctx.uid,'pay:amount',data); await send(env,ctx.chatId,'Введи сумму (₽):'); return true; }
+    case 'pay:amount': { data.amount=parseFloat(t.replace(',','.'))||0; await setState(env,ctx.uid,'pay:date',data); const np=nowParts(ctx.user.tz); await send(env,ctx.chatId,'Дата следующего платежа:', buildCalendar(np.y,np.mo,'pw:cal')); return true; }
+    case 'fin:catnew': { const m=t.match(/^(\S+)?\s*(.+)?$/); const emoji=(m&&m[1]&&/\p{Extended_Pictographic}/u.test(m[1]))?m[1]:''; const name=emoji?(m[2]||'').trim():t; await dbInsertOne(env,'eb1_finance_categories',{ telegram_user_id:ctx.uid, name:name||t, emoji }); await done('✅ Категория создана', ikb([[btn('К категориям','fin:cat')]])); return true; }
+    case 'fin:catren': { await dbUpdate(env,'eb1_finance_categories',`id=eq.${data.id}`,{ name:t }); await done('✅ Переименовано', ikb([[btn('Открыть',`fin:catopen:${data.id}`)]])); return true; }
+    case 'fin:catemoji': { await dbUpdate(env,'eb1_finance_categories',`id=eq.${data.id}`,{ emoji:t }); await done('✅ Emoji обновлён', ikb([[btn('Открыть',`fin:catopen:${data.id}`)]])); return true; }
+    case 'fin:catkw': { await dbInsert(env,'eb1_finance_category_keywords',{ telegram_user_id:ctx.uid, category_id:data.id, keyword:t.toLowerCase() }); await done('✅ Ключевое слово добавлено', ikb([[btn('Открыть',`fin:catopen:${data.id}`)]])); return true; }
+    case 'fin:setstart': { await dbUpdate(env,'eb1_users',`telegram_user_id=eq.${ctx.uid}`,{ start_balance:parseFloat(t.replace(',','.'))||0 }); await done('✅ Стартовый баланс задан', ikb([[btn('Баланс','fin:bal')]])); return true; }
+    case 'fin:adjust': { const v=parseFloat(t.replace(',','.')); if(isFinite(v)) await dbInsert(env,'eb1_balance_adjustments',{ telegram_user_id:ctx.uid, amount:v, reason:'ручная корректировка' }); await done('✅ Баланс скорректирован', ikb([[btn('Баланс','fin:bal')]])); return true; }
+    case 'fin:limset': { const mm=t.match(/^(.+?)\s+(\d+(?:[.,]\d+)?)$/); if(!mm){ await send(env,ctx.chatId,'Формат: «Еда 10000»'); return true; } const cat=await dbOne(env,'eb1_finance_categories',`telegram_user_id=eq.${ctx.uid}&name=ilike.${encodeURIComponent(mm[1].trim())}&select=id`); if(!cat){ await send(env,ctx.chatId,'Категория не найдена'); return true; } await sb(env,'POST','eb1_limits',{ body:[{ telegram_user_id:ctx.uid, category_id:cat.id, monthly_limit:parseFloat(mm[2].replace(',','.')) }], prefer:'resolution=merge-duplicates' }); await done('✅ Лимит задан', ikb([[btn('Лимиты','fin:lim')]])); return true; }
+    case 'fin:savnew': { const mm=t.match(/^(.+?)\s+(\d+(?:[.,]\d+)?)$/); if(!mm){ await send(env,ctx.chatId,'Формат: «Ноутбук 120000»'); return true; } await dbInsert(env,'eb1_savings_goals',{ telegram_user_id:ctx.uid, title:mm[1].trim(), target:parseFloat(mm[2].replace(',','.')) }); await done('✅ Цель накопления создана', ikb([[btn('Сбережения','fin:save')]])); return true; }
+    case 'fin:savadd': { const v=parseFloat(t.replace(',','.'))||0; const s=await dbOne(env,'eb1_savings_goals',`id=eq.${data.id}&select=current`); await dbUpdate(env,'eb1_savings_goals',`id=eq.${data.id}`,{ current:Number(s.current)+v }); await done('✅ Пополнено', ikb([[btn('Сбережения','fin:save')]])); return true; }
+    case 'fin:savsub': { const v=parseFloat(t.replace(',','.'))||0; const s=await dbOne(env,'eb1_savings_goals',`id=eq.${data.id}&select=current`); await dbUpdate(env,'eb1_savings_goals',`id=eq.${data.id}`,{ current:Math.max(0,Number(s.current)-v) }); await done('✅ Уменьшено', ikb([[btn('Сбережения','fin:save')]])); return true; }
+    case 'fin:payamt': { await dbUpdate(env,'eb1_payments',`id=eq.${data.id}`,{ amount:parseFloat(t.replace(',','.'))||0 }); await done('✅ Сумма обновлена', ikb([[btn('Открыть',`fin:payopen:${data.id}`)]])); return true; }
+    case 'task:note_open': { await dbUpdate(env,'eb1_tasks',`id=eq.${data.id}`,{ note:t }); await done('✅ Заметка сохранена', ikb([[btn('Открыть',`task:open:${data.id}`)]])); return true; }
+    case 'task:stage_open': { const x=await dbOne(env,'eb1_tasks',`id=eq.${data.id}&select=stage`); await dbInsert(env,'eb1_task_stage_history',{ telegram_user_id:ctx.uid, task_id:data.id, old_stage:x?.stage||'', new_stage:t }); await dbUpdate(env,'eb1_tasks',`id=eq.${data.id}`,{ stage:t }); await done('✅ Стадия обновлена', ikb([[btn('Открыть',`task:open:${data.id}`)]])); return true; }
+    case 'prof:rewnew': { const mm=t.match(/^(.+?)\s+(\d+)$/); if(!mm){ await send(env,ctx.chatId,'Формат: «Пицца 1000»'); return true; } await dbInsert(env,'eb1_rewards',{ telegram_user_id:ctx.uid, title:mm[1].trim(), cost:parseInt(mm[2]) }); await done('✅ Награда добавлена', ikb([[btn('Награды','prof:rewards')]])); return true; }
+    case 'set:brieftime': { if(/^\d{1,2}:\d{2}$/.test(t)) await dbUpdate(env,'eb1_users',`telegram_user_id=eq.${ctx.uid}`,{ briefing_time:t.padStart(5,'0') }); await done('✅ Время брифинга задано', ikb([[btn('Настройки','set:menu')]])); return true; }
+    case 'set:tz': { await dbUpdate(env,'eb1_users',`telegram_user_id=eq.${ctx.uid}`,{ tz:t }); await done('✅ Часовой пояс задан', ikb([[btn('Настройки','set:menu')]])); return true; }
+  }
+  return false;
+}
+
+// ═══ РОУТЕР CALLBACK ═══
+async function handleCallback(env,ctx,data){
+  const p=data.split(':'); const area=p[0];
+  if(data==='noop') return answer(env,ctx.cbId);
+  if(area==='nav'){ await clearState(env,ctx.uid); if(p[1]==='menu') return showMenu(env,ctx,ctx.user); }
+
+  if(area==='tw'){
+    const st=await getState(env,ctx.uid); const d=st.data||{};
+    if(p[1]==='stageskip'){ d.stage=''; return askTaskDate(env,ctx,d); }
+    if(p[1]==='cal'&&p[2]==='nav'){ let y=+p[3],mo=+p[4]+ +p[5]; if(mo<1){mo=12;y--;} if(mo>12){mo=1;y++;} return edit(env,ctx.chatId,ctx.msgId,'Выбери дату:',buildCalendar(y,mo,'tw:cal',[btn('Без даты','tw:date:none')])); }
+    if(p[1]==='cal'&&p[2]==='pick'){ d.due_date=p[3]; return askTaskTime(env,ctx,d); }
+    if(p[1]==='date'){ d.due_date=p[2]; if(p[2]==='none'){ d.due_hour=null; return askTaskImportance(env,ctx,d); } return askTaskTime(env,ctx,d); }
+    if(p[1]==='time'){ d.due_hour=p[2]==='none'?null:+p[2]; return askTaskImportance(env,ctx,d); }
+    if(p[1]==='imp'){ d.importance=p[2]; return askTaskRepeat(env,ctx,d); }
+    if(p[1]==='rep'){ d.repeat=p[2]; return askTaskReminders(env,ctx,d); }
+    if(p[1]==='rt'){ d.picks=d.picks||['at']; const k=p[2]; d.picks=d.picks.includes(k)?d.picks.filter(x=>x!==k):[...d.picks,k]; await setState(env,ctx.uid,'task:rem',d); let hoursAway=null; if(d.due_date&&d.due_date!=='none'){ const fire=localToUtc(...d.due_date.split('-').map(Number),(d.due_hour??9),0,ctx.user.tz); hoursAway=(fire.getTime()-Date.now())/3600000; } return edit(env,ctx.chatId,ctx.msgId,'🔔 Выбери напоминания:',ikb(reminderPicksKeyboard(d.picks,hoursAway,'tw'))); }
+    if(p[1]==='rdone') return finalizeTask(env,ctx,d);
+    return answer(env,ctx.cbId);
+  }
+  if(area==='ht'){
+    const st=await getState(env,ctx.uid); const d=st.data||{};
+    if(p[1]==='type'){ d.type=p[2]; if(p[2]==='number'){ await setState(env,ctx.uid,'habit:number',d); return send(env,ctx.chatId,'Введи числовую цель (напр. 2):'); } if(p[2]==='time'){ await setState(env,ctx.uid,'habit:time',d); return send(env,ctx.chatId,'Введи целевое время (напр. 23:00):'); } return finalizeHabit(env,ctx,d); }
+  }
+  if(area==='pw'){
+    const st=await getState(env,ctx.uid); const d=st.data||{};
+    if(p[1]==='cal'&&p[2]==='nav'){ let y=+p[3],mo=+p[4]+ +p[5]; if(mo<1){mo=12;y--;} if(mo>12){mo=1;y++;} return edit(env,ctx.chatId,ctx.msgId,'Дата платежа:',buildCalendar(y,mo,'pw:cal')); }
+    if(p[1]==='cal'&&p[2]==='pick'){ d.next_date=p[3]; const row={ telegram_user_id:ctx.uid, title:d.title, amount:d.amount||0, next_date:d.next_date, periodicity:'monthly', importance:'orange' }; const pay=await dbInsertOne(env,'eb1_payments',row); const fire=localToUtc(...d.next_date.split('-').map(Number),12,0,ctx.user.tz); await scheduleEventReminders(env,ctx.uid,'payment',pay.id,`Платёж: ${row.title}`,fire,['3d','1d','at']); await logAct(env,ctx.uid,'payment_create',row.title); await clearState(env,ctx.uid); return send(env,ctx.chatId,`✅ Платёж создан: <b>${esc(row.title)}</b> ${money(row.amount)}`, ikb([[btn('Открыть',`fin:payopen:${pay.id}`)],[btn('🏠 В меню','nav:menu')]])); }
+  }
+
+  if(area==='task'){
+    switch(p[1]){
+      case 'menu': return taskMenu(env,ctx);
+      case 'new': return taskWizardStart(env,ctx);
+      case 'list': return taskList(env,ctx,p[2]);
+      case 'open': return taskOpen(env,ctx,p[2]);
+      case 'done': return taskDone(env,ctx,p[2]);
+      case 'overdue': return taskOverdue(env,ctx);
+      case 'archive': return taskArchive(env,ctx);
+      case 'cal': return taskCalendar(env,ctx,p[2]);
+      case 'tpl': return taskTemplates(env,ctx);
+      case 'tplnew': { const tpl=await dbOne(env,'eb1_task_templates',`id=eq.${p[2]}&select=title`); return taskWizardStart(env,ctx,tpl?.title||'Задача'); }
+      case 'tpldel': { await dbDelete(env,'eb1_task_templates',`id=eq.${p[2]}&telegram_user_id=eq.${ctx.uid}`); return taskTemplates(env,ctx); }
+      case 'stage': { await setState(env,ctx.uid,'task:stage_open',{ id:+p[2] }); return send(env,ctx.chatId,'Введи новую стадию:'); }
+      case 'note': { await setState(env,ctx.uid,'task:note_open',{ id:+p[2] }); return send(env,ctx.chatId,'Введи заметку:'); }
+      case 'status': return screen(env,ctx,'Выбери статус:', ikb([[btn(STATUS.todo,`task:setst:todo:${p[2]}`)],[btn(STATUS.doing,`task:setst:doing:${p[2]}`)],[btn(STATUS.paused,`task:setst:paused:${p[2]}`)],navRow(`task:open:${p[2]}`)]));
+      case 'setst': { await dbUpdate(env,'eb1_tasks',`id=eq.${p[3]}`,{ status:p[2] }); return taskOpen(env,ctx,p[3]); }
+      case 'imp': return screen(env,ctx,'Выбери важность:', ikb([[btn(IMP.green.label,`task:setimp:green:${p[2]}`)],[btn(IMP.yellow.label,`task:setimp:yellow:${p[2]}`)],[btn(IMP.orange.label,`task:setimp:orange:${p[2]}`)],[btn(IMP.red.label,`task:setimp:red:${p[2]}`)],navRow(`task:open:${p[2]}`)]));
+      case 'setimp': { await dbUpdate(env,'eb1_tasks',`id=eq.${p[3]}`,{ importance:p[2] }); return taskOpen(env,ctx,p[3]); }
+      case 'move': { const np=nowParts(ctx.user.tz); await setState(env,ctx.uid,'task:moving',{ id:+p[2] }); return screen(env,ctx,'На какую дату перенести?',buildCalendar(np.y,np.mo,'task:movecal')); }
+      case 'movecal': { if(p[2]==='nav'){ let y=+p[3],mo=+p[4]+ +p[5]; if(mo<1){mo=12;y--;} if(mo>12){mo=1;y++;} return edit(env,ctx.chatId,ctx.msgId,'Дата:',buildCalendar(y,mo,'task:movecal')); } if(p[2]==='pick'){ const st=await getState(env,ctx.uid); await dbUpdate(env,'eb1_tasks',`id=eq.${st.data.id}`,{ due_date:p[3] }); await clearState(env,ctx.uid); return taskOpen(env,ctx,st.data.id); } break; }
+      case 'hist': { const h=await dbSelect(env,'eb1_task_stage_history',`task_id=eq.${p[2]}&select=old_stage,new_stage&order=changed_at.asc`); let t='📜 <b>История стадий</b>\n\n'; if(!h?.length) t+='<i>пусто</i>'; else h.forEach(r=>t+=`${esc(r.old_stage||'—')} → ${esc(r.new_stage)}\n`); await screen(env,ctx,t,ikb([navRow(`task:open:${p[2]}`)])); const nums=(h||[]).map(r=>parseFloat(String(r.new_stage).replace(',','.'))).filter(v=>isFinite(v)); if(nums.length>=2) await sendPhoto(env,ctx.chatId,lineChart('Прогресс стадии',nums.map((_,i)=>String(i+1)),nums,'Значение'),'📈 Прогресс'); return; }
+      case 'del': return screen(env,ctx,'Точно удалить задачу?', ikb([[btn('🗑 Да, удалить',`task:delyes:${p[2]}`)],[btn('Отмена',`task:open:${p[2]}`)]]));
+      case 'delyes': { await dbDelete(env,'eb1_tasks',`id=eq.${p[2]}&telegram_user_id=eq.${ctx.uid}`); await dbDelete(env,'eb1_reminders',`kind=eq.task&ref_id=eq.${p[2]}`); await logAct(env,ctx.uid,'task_delete',''); return taskMenu(env,ctx); }
+      case 'alldone': { await addRespect(env,ctx.uid,RESPECT.all_done,'Все задачи дня'); const a=await unlock(env,ctx.uid,'all_done'); await answer(env,ctx.cbId,`🎉 +${RESPECT.all_done}!`); if(a) await send(env,ctx.chatId,`🏅 ${a}\n\n💬 ${pick(MOTIVATION)}`); return showMenu(env,ctx,ctx.user); }
+    }
+  }
+
+  if(area==='fin'){
+    switch(p[1]){
+      case 'menu': return finMenu(env,ctx);
+      case 'add': return finAddStart(env,ctx,p[2]);
+      case 'save_tx': return finSaveTx(env,ctx);
+      case 'cancel': await clearState(env,ctx.uid); return finMenu(env,ctx);
+      case 'flip': { const st=await getState(env,ctx.uid); const d=st.data; d.type=d.type==='income'?'expense':'income'; return finConfirm(env,ctx,d); }
+      case 'pick_cat': { const cats=await dbSelect(env,'eb1_finance_categories',`telegram_user_id=eq.${ctx.uid}&select=id,name,emoji`); const kb=(cats||[]).map(c=>[btn(`${c.emoji} ${c.name}`,`fin:setcat:${c.id}`)]); kb.push([btn('Отмена','fin:cancel')]); return screen(env,ctx,'Выбери категорию:',ikb(kb)); }
+      case 'setcat': { const st=await getState(env,ctx.uid); const d=st.data; d.categoryId=+p[2]; return finConfirm(env,ctx,d); }
+      case 'ops': return finOps(env,ctx,p[2]);
+      case 'op': return finOpOpen(env,ctx,p[2]);
+      case 'opdel': { await dbDelete(env,'eb1_finance_transactions',`id=eq.${p[2]}&telegram_user_id=eq.${ctx.uid}`); await logAct(env,ctx.uid,'finance_delete',''); return finOps(env,ctx,'today'); }
+      case 'oped': { await setState(env,ctx.uid,p[2]==='amount'?'fin:opamt':'fin:opcat',{ id:+p[3] }); return send(env,ctx.chatId,p[2]==='amount'?'Новая сумма:':'Напиши название категории:'); }
+      case 'an': return finAnalytics(env,ctx);
+      case 'charts': return finCharts(env,ctx);
+      case 'bal': return finBalance(env,ctx);
+      case 'setstart': await setState(env,ctx.uid,'fin:setstart',{}); return send(env,ctx.chatId,'Введи стартовый баланс (₽):');
+      case 'adjust': await setState(env,ctx.uid,'fin:adjust',{}); return send(env,ctx.chatId,'Введи корректировку (напр. 500 или -300):');
+      case 'lim': return finLimits(env,ctx);
+      case 'limset': await setState(env,ctx.uid,'fin:limset',{}); return send(env,ctx.chatId,'Введи «Категория сумма», напр. «Еда 10000»:');
+      case 'cat': return finCategories(env,ctx);
+      case 'catopen': return finCatOpen(env,ctx,p[2]);
+      case 'catnew': await setState(env,ctx.uid,'fin:catnew',{}); return send(env,ctx.chatId,'Введи «😀 Название» или просто название:');
+      case 'catren': await setState(env,ctx.uid,'fin:catren',{ id:+p[2] }); return send(env,ctx.chatId,'Новое название:');
+      case 'catemoji': await setState(env,ctx.uid,'fin:catemoji',{ id:+p[2] }); return send(env,ctx.chatId,'Новый emoji:');
+      case 'catkw': await setState(env,ctx.uid,'fin:catkw',{ id:+p[2] }); return send(env,ctx.chatId,'Ключевое слово:');
+      case 'catdel': { await dbDelete(env,'eb1_finance_category_keywords',`category_id=eq.${p[2]}&telegram_user_id=eq.${ctx.uid}`); await dbDelete(env,'eb1_finance_categories',`id=eq.${p[2]}&telegram_user_id=eq.${ctx.uid}`); return finCategories(env,ctx); }
+      case 'pay': return finPayments(env,ctx);
+      case 'paynew': return payWizardStart(env,ctx);
+      case 'payopen': return finPayOpen(env,ctx,p[2]);
+      case 'paytpl': return finPayTemplates(env,ctx);
+      case 'paytplnew': { const tpl=await dbOne(env,'eb1_payment_templates',`id=eq.${p[2]}&select=title`); return payWizardStart(env,ctx,tpl?.title||'Платёж'); }
+      case 'paytpldel': { await dbDelete(env,'eb1_payment_templates',`id=eq.${p[2]}&telegram_user_id=eq.${ctx.uid}`); return finPayTemplates(env,ctx); }
+      case 'payamt': await setState(env,ctx.uid,'fin:payamt',{ id:+p[2] }); return send(env,ctx.chatId,'Новая сумма (₽):');
+      case 'paypaid': { const pay=await dbOne(env,'eb1_payments',`id=eq.${p[2]}`); const today=nowParts(ctx.user.tz).dateStr; await dbInsert(env,'eb1_finance_transactions',{ telegram_user_id:ctx.uid, amount:pay.amount, type:'expense', category_id:pay.category_id, description:pay.title, tx_date:today }); if(pay.periodicity&&pay.periodicity!=='none'&&pay.next_date){ const nd=nextRepeatDate(pay.next_date,pay.periodicity); await dbUpdate(env,'eb1_payments',`id=eq.${p[2]}`,{ next_date:nd }); const fire=localToUtc(...nd.split('-').map(Number),12,0,ctx.user.tz); await scheduleEventReminders(env,ctx.uid,'payment',pay.id,`Платёж: ${pay.title}`,fire,['3d','1d','at']); } await dbDelete(env,'eb1_reminders',`kind=eq.payment&ref_id=eq.${p[2]}&sent=eq.false`); await logAct(env,ctx.uid,'payment_paid',pay.title); await answer(env,ctx.cbId,'✅ Оплачено и записано в расходы'); return finPayments(env,ctx); }
+      case 'paymove': { const np=nowParts(ctx.user.tz); await setState(env,ctx.uid,'pay:moving',{ id:+p[2] }); return screen(env,ctx,'Новая дата платежа:',buildCalendar(np.y,np.mo,'fin:paymovecal')); }
+      case 'paymovecal': { if(p[2]==='nav'){ let y=+p[3],mo=+p[4]+ +p[5]; if(mo<1){mo=12;y--;} if(mo>12){mo=1;y++;} return edit(env,ctx.chatId,ctx.msgId,'Дата:',buildCalendar(y,mo,'fin:paymovecal')); } if(p[2]==='pick'){ const st=await getState(env,ctx.uid); await dbUpdate(env,'eb1_payments',`id=eq.${st.data.id}`,{ next_date:p[3] }); await clearState(env,ctx.uid); return finPayOpen(env,ctx,st.data.id); } break; }
+      case 'paydel': { await dbDelete(env,'eb1_payments',`id=eq.${p[2]}&telegram_user_id=eq.${ctx.uid}`); await dbDelete(env,'eb1_reminders',`kind=eq.payment&ref_id=eq.${p[2]}`); return finPayments(env,ctx); }
+      case 'save': return finSavings(env,ctx);
+      case 'savnew': await setState(env,ctx.uid,'fin:savnew',{}); return send(env,ctx.chatId,'Введи «Название сумма», напр. «Ноутбук 120000»:');
+      case 'savadd': await setState(env,ctx.uid,'fin:savadd',{ id:+p[2] }); return send(env,ctx.chatId,'Сколько добавить (₽)?');
+      case 'savsub': await setState(env,ctx.uid,'fin:savsub',{ id:+p[2] }); return send(env,ctx.chatId,'Сколько убрать (₽)?');
+      case 'savdel': { await dbDelete(env,'eb1_savings_goals',`id=eq.${p[2]}&telegram_user_id=eq.${ctx.uid}`); return finSavings(env,ctx); }
+    }
+  }
+
+  if(area==='goal'){
+    switch(p[1]){
+      case 'menu': return goalMenu(env,ctx);
+      case 'new': await setState(env,ctx.uid,'goal:new',{}); return send(env,ctx.chatId,'Введи название цели:');
+      case 'list': return goalList(env,ctx);
+      case 'open': return goalOpen(env,ctx,p[2]);
+      case 'stage': await setState(env,ctx.uid,'goal:stage',{ id:+p[2] }); return send(env,ctx.chatId,'Новая стадия цели:');
+      case 'note': await setState(env,ctx.uid,'goal:note',{ id:+p[2] }); return send(env,ctx.chatId,'Заметка прогресса:');
+      case 'hist': { const h=await dbSelect(env,'eb1_goal_stage_history',`goal_id=eq.${p[2]}&select=old_stage,new_stage&order=changed_at.asc`); let t='📜 История стадий\n\n'; if(!h?.length) t+='пусто'; else h.forEach(r=>t+=`${esc(r.old_stage||'—')} → ${esc(r.new_stage)}\n`); await screen(env,ctx,t,ikb([navRow(`goal:open:${p[2]}`)])); const nums=(h||[]).map(r=>parseFloat(String(r.new_stage).replace(',','.'))).filter(v=>isFinite(v)); if(nums.length>=2) await sendPhoto(env,ctx.chatId,lineChart('Прогресс цели',nums.map((_,i)=>String(i+1)),nums,'Значение'),'📈'); return; }
+      case 'notes': { const n=await dbSelect(env,'eb1_goal_notes',`goal_id=eq.${p[2]}&select=text&order=created_at.desc&limit=20`); let t='🗒 Заметки прогресса\n\n'; if(!n?.length) t+='пусто'; else n.forEach(x=>t+=`• ${esc(x.text)}\n`); return screen(env,ctx,t,ikb([navRow(`goal:open:${p[2]}`)])); }
+      case 'close': return goalClose(env,ctx,p[2]);
+      case 'del': { await dbDelete(env,'eb1_goals',`id=eq.${p[2]}&telegram_user_id=eq.${ctx.uid}`); return goalMenu(env,ctx); }
+    }
+  }
+
+  if(area==='habit'){
+    switch(p[1]){
+      case 'menu': return habitMenu(env,ctx);
+      case 'new': await setState(env,ctx.uid,'habit:new',{}); return send(env,ctx.chatId,'Введи название привычки:');
+      case 'list': return habitList(env,ctx);
+      case 'open': return habitOpen(env,ctx,p[2]);
+      case 'log': return habitLog(env,ctx,p[2],true);
+      case 'unlog': return habitLog(env,ctx,p[2],false);
+      case 'tpl': return habitTemplates(env,ctx);
+      case 'tplnew': { const tpl=await dbOne(env,'eb1_habit_templates',`id=eq.${p[2]}&select=title,type`); return finalizeHabit(env,ctx,{ title:tpl?.title||'Привычка', type:tpl?.type||'yesno' }); }
+      case 'tpldel': { await dbDelete(env,'eb1_habit_templates',`id=eq.${p[2]}&telegram_user_id=eq.${ctx.uid}`); return habitTemplates(env,ctx); }
+      case 'stats': return habitStatsScreen(env,ctx);
+      case 'remind': await setState(env,ctx.uid,'habit:remind',{ id:+p[2] }); return send(env,ctx.chatId,'Во сколько напоминать (HH:MM)?');
+      case 'del': { await dbDelete(env,'eb1_habit_logs',`habit_id=eq.${p[2]}`); await dbDelete(env,'eb1_habits',`id=eq.${p[2]}&telegram_user_id=eq.${ctx.uid}`); return habitMenu(env,ctx); }
+    }
+  }
+
+  if(area==='prof'){
+    switch(p[1]){
+      case 'menu': return profMenu(env,ctx);
+      case 'ach': return profAch(env,ctx);
+      case 'rewards': return profRewards(env,ctx);
+      case 'buy': return profBuy(env,ctx,p[2]);
+      case 'rewnew': await setState(env,ctx.uid,'prof:rewnew',{}); return send(env,ctx.chatId,'Введи «Название цена», напр. «Пицца 1000»:');
+      case 'rewdel': { await dbDelete(env,'eb1_rewards',`id=eq.${p[2]}&telegram_user_id=eq.${ctx.uid}`); return profRewards(env,ctx); }
+      case 'act': return profActivity(env,ctx);
+      case 'goals': return profGoals(env,ctx);
+    }
+  }
+
+  if(area==='set'){
+    switch(p[1]){
+      case 'menu': return setMenu(env,ctx);
+      case 'brieftoggle': { const u=await dbOne(env,'eb1_users',`telegram_user_id=eq.${ctx.uid}&select=briefing_enabled`); await dbUpdate(env,'eb1_users',`telegram_user_id=eq.${ctx.uid}`,{ briefing_enabled:!u.briefing_enabled }); return setMenu(env,ctx); }
+      case 'weeklytoggle': { const u=await dbOne(env,'eb1_users',`telegram_user_id=eq.${ctx.uid}&select=weekly_enabled`); await dbUpdate(env,'eb1_users',`telegram_user_id=eq.${ctx.uid}`,{ weekly_enabled:!u.weekly_enabled }); return setMenu(env,ctx); }
+      case 'brieftime': await setState(env,ctx.uid,'set:brieftime',{}); return send(env,ctx.chatId,'Введи время брифинга (HH:MM):');
+      case 'tz': await setState(env,ctx.uid,'set:tz',{}); return send(env,ctx.chatId,'Введи часовой пояс (напр. Europe/Moscow):');
+    }
+  }
+
+  if(area==='rem' && p[1]==='snooze'){ const r=await dbOne(env,'eb1_reminders',`id=eq.${p[2]}&select=label,kind,ref_id,telegram_user_id`); if(r){ await dbInsert(env,'eb1_reminders',{ telegram_user_id:r.telegram_user_id, kind:r.kind, ref_id:r.ref_id, label:r.label, fire_at:new Date(Date.now()+3600000).toISOString() }); } return answer(env,ctx.cbId,'⏰ Напомню через час'); }
+
+  return answer(env,ctx.cbId);
+}
+
+// ═══ CRON ═══
+async function runCron(env){
+  const now=new Date();
+  const due=await dbSelect(env,'eb1_reminders',`sent=eq.false&fire_at=lte.${now.toISOString()}&select=*&limit=100`);
+  for(const r of (due||[])){
+    try{
+      let kb;
+      if(r.kind==='task') kb=ikb([[btn('✅ Выполнено',`task:done:${r.ref_id}`),btn('⏰ Через час',`rem:snooze:${r.id}`)],[btn('📅 Перенести',`task:move:${r.ref_id}`),btn('🗑 Удалить',`task:delyes:${r.ref_id}`)]]);
+      else if(r.kind==='payment') kb=ikb([[btn('✅ Оплачено',`fin:paypaid:${r.ref_id}`)],[btn('📅 Перенести',`fin:paymove:${r.ref_id}`),btn('🗑 Удалить',`fin:paydel:${r.ref_id}`)]]);
+      await send(env,r.telegram_user_id,`🔔 <b>Напоминание</b>\n${esc(r.label)}`,kb);
+      await dbUpdate(env,'eb1_reminders',`id=eq.${r.id}`,{ sent:true });
+    }catch(e){ console.log('rem err',e.message); }
+  }
+  const users=await dbSelect(env,'eb1_users','select=*');
+  for(const u of (users||[])){
+    try{
+      const np=nowParts(u.tz);
+      if(u.briefing_enabled){ const [bh,bm]=(u.briefing_time||'08:00').split(':').map(Number); const target=bh*60+bm; if(np.minOfDay>=target&&np.minOfDay<target+5&&u.last_briefing_date!==np.dateStr){ await send(env,u.telegram_user_id,await buildBriefing(env,u.telegram_user_id,u.tz)); await dbUpdate(env,'eb1_users',`telegram_user_id=eq.${u.telegram_user_id}`,{ last_briefing_date:np.dateStr }); } }
+      if(u.weekly_enabled&&np.dow===u.weekly_dow){ const [wh,wm]=(u.weekly_time||'19:00').split(':').map(Number); const target=wh*60+wm; if(np.minOfDay>=target&&np.minOfDay<target+5&&u.last_weekly_date!==np.dateStr){ await send(env,u.telegram_user_id,await buildWeekly(env,u.telegram_user_id,u.tz)); await dbUpdate(env,'eb1_users',`telegram_user_id=eq.${u.telegram_user_id}`,{ last_weekly_date:np.dateStr }); } }
+      const habits=await dbSelect(env,'eb1_habits',`telegram_user_id=eq.${u.telegram_user_id}&reminder_time=not.is.null&select=id,title,reminder_time,target_time,type`);
+      for(const h of (habits||[])){ const [hh,hm]=h.reminder_time.split(':').map(Number); const target=hh*60+hm; if(np.minOfDay>=target&&np.minOfDay<target+5){ const log=await dbOne(env,'eb1_habit_logs',`habit_id=eq.${h.id}&log_date=eq.${np.dateStr}&select=id`); if(!log){ const extra=h.type==='time'&&h.target_time?`\nЦель: до ${h.target_time}`:''; await send(env,u.telegram_user_id,`🔥 Привычка: <b>${esc(h.title)}</b>${extra}`,ikb([[btn('✅ Выполнено',`habit:log:${h.id}`),btn('❌ Пропущено',`habit:unlog:${h.id}`)]])); } } }
+    }catch(e){ console.log('user cron err',u.telegram_user_id,e.message); }
+  }
+}
+
+// ═══ ВХОДНАЯ ТОЧКА ═══
 export default {
-  async fetch(request, env) {
-    try {
-      if (request.method === "GET") return new Response("Gym Bot v4 работает");
-      if (request.method === "POST") {
-        const update = await request.json();
-        if (update.message) await handleMessage(env, update.message);
-        if (update.callback_query) await handleCallback(env, update.callback_query);
-        return new Response("ok");
-      }
-      return new Response("Method not allowed", { status: 405 });
-    } catch (e) {
-      return new Response("Worker error: " + e.message, { status: 500 });
-    }
-  }
+  async fetch(request,env,ctx){
+    if(request.method!=='POST') return new Response('Electric Brain is running.');
+    if(env.WEBHOOK_SECRET && request.headers.get('X-Telegram-Bot-Api-Secret-Token')!==env.WEBHOOK_SECRET) return new Response('forbidden',{ status:403 });
+    let update; try{ update=await request.json(); }catch{ return new Response('ok'); }
+    ctx.waitUntil(processUpdate(env,update).catch(e=>console.log('process err',e.message,e.stack)));
+    return new Response('ok');
+  },
+  async scheduled(event,env,ctx){ ctx.waitUntil(runCron(env).catch(e=>console.log('cron err',e.message))); },
 };
 
-function p(name, days) { return { name, days }; }
-
-// ===================== РОУТИНГ СООБЩЕНИЙ =====================
-
-async function handleMessage(env, msg) {
-  const chatId = msg.chat.id;
-  const userId = msg.from.id;
-  const text = (msg.text || "").trim();
-
-  await ensureUser(env, msg.from);
-  const st = await getState(env, userId);
-
-  if (text === "/start" || text.toLowerCase() === "меню") {
-    await clearState(env, userId);
-    return sendMessage(env, chatId, await mainText(env, msg.from), mainMenu());
+async function processUpdate(env,update){
+  if(update.message && update.message.text){
+    const msg=update.message; const from=msg.from; const user=await ensureUser(env,from);
+    const c={ uid:from.id, chatId:msg.chat.id, user, msgId:null };
+    const text=msg.text.trim();
+    if(text.startsWith('/start')||text.startsWith('/menu')){ await clearState(env,from.id); return showMenu(env,c,user); }
+    if(text.startsWith('/settings')) return setMenu(env,c);
+    if(text.startsWith('/help')) return send(env,c.chatId,'ℹ️ <b>Электрический мозг</b>\n\nЯ помню твои обязательства: задачи, цели, привычки, финансы, платежи и напоминания.\n\n• Быстрый ввод финансов: «550 еда», «+3000 подработка».\n• Остальное — через кнопки меню.\n\n/menu — открыть меню', ikb([[btn('🏠 В меню','nav:menu')]]));
+    return handleText(env,c,text);
   }
-
-  if (st?.state === "set_input") return handleSetInput(env, msg, st);
-  if (st?.state === "set_note") return handleSetNote(env, msg, st);
-  if (st?.state === "friend_add") return handleFriendAdd(env, msg);
-  if (st?.state === "friend_broadcast") return handleBroadcast(env, msg);
-  if (st?.state === "custom_name") return handleCustomName(env, msg);
-  if (st?.state === "prof_height") return handleProfInput(env, msg, "height");
-  if (st?.state === "prof_weight") return handleProfInput(env, msg, "weight");
-  if (st?.state === "prof_age") return handleProfInput(env, msg, "age");
-  if (st?.state === "water_custom") return handleWaterCustom(env, msg);
-  if (st?.state === "water_goal") return handleWaterGoal(env, msg);
-
-  return sendMessage(env, chatId, "Используй кнопки ниже 👇", mainMenu());
-}
-
-// ===================== РОУТИНГ КНОПОК =====================
-
-async function handleCallback(env, cq) {
-  const chatId = cq.message.chat.id;
-  const msgId = cq.message.message_id;
-  const userId = cq.from.id;
-  const data = cq.data;
-  const E = (t, kb) => editMessage(env, chatId, msgId, t, kb);
-
-  await answerCallback(env, cq.id);
-  await ensureUser(env, cq.from);
-
-  if (data === "menu") return E(await mainText(env, cq.from), mainMenu());
-
-  // ---- Тренировки ----
-  if (data === "trainings") return E("🏋️ Тренировки", trainingsMenu());
-  if (data === "log") { await ensureVisitOncePer3Hours(env, cq.from); return E("✍️ Записать результат\n\nВыбери группу:", muscleGroupsMenu("log")); }
-  if (data === "sess_start") return E("▶️ Начать тренировку\n\nКак самочувствие/энергия сейчас?", energyMenu());
-  if (data.startsWith("energy:")) return startSession(env, cq, Number(data.split(":")[1]));
-  if (data === "sess_end") return endSession(env, cq);
-  if (data === "repeat_last") return repeatLast(env, cq);
-  if (data === "fav_list") return E(await favListText(env, userId), await favListMenu(env, userId));
-  if (data === "spont") return E("🎲 Спонтанное упражнение\n\nВыбери группу:", spontMenu());
-  if (data.startsWith("spont:")) return spontaneous(env, cq, data.split(":")[1]);
-
-  // ---- Группы / упражнения ----
-  if (data === "free") { await ensureVisitOncePer3Hours(env, cq.from); return E("🆓 Свободная тренировка\n\nВыбери группу:", muscleGroupsMenu("free")); }
-  if (data.startsWith("group:")) {
-    const g = data.split(":")[1];
-    if (SUBGROUPS[g]) return E(SUBGROUPS[g].title + "\n\nВыбери раздел:", subGroupsMenu(g));
-    return E(GROUPS[g][0] + "\n\nВыбери упражнение:", exercisesMenu(GROUPS[g][1], "free"));
+  if(update.callback_query){
+    const cq=update.callback_query; const from=cq.from; const user=await ensureUser(env,from);
+    const c={ uid:from.id, chatId:cq.message.chat.id, user, msgId:cq.message.message_id, cbId:cq.id };
+    try{ await handleCallback(env,c,cq.data); }catch(e){ console.log('cb err',e.message,e.stack); }
+    try{ await answer(env,cq.id); }catch{}
+    return;
   }
-  if (data.startsWith("sub:")) {
-    const [, g, s] = data.split(":");
-    const sub = SUBGROUPS[g].subs[s];
-    return E(sub[0] + "\n\nВыбери упражнение:", exercisesMenu(sub[1], "group:" + g));
-  }
-  if (data.startsWith("ex:")) {
-    const id = data.split(":")[1];
-    await syncJointExercise(env, userId, id);
-    return E(await exerciseText(env, userId, id), await exerciseMenu(env, userId, id));
-  }
-  if (data.startsWith("set:")) {
-    const id = data.split(":")[1];
-    await setState(env, userId, "set_input", { exercise_id: id });
-    return E("Запись подхода\n\n" + EX[id][0] + "\n\nВведи вес и повторы одним сообщением.\nПример: 80 8", navMenu("ex:" + id));
-  }
-  if (data.startsWith("hist:")) { const id = data.split(":")[1]; return E(await historyText(env, userId, id), navMenu("ex:" + id)); }
-  if (data.startsWith("note:")) {
-    const id = data.split(":")[1];
-    await setState(env, userId, "set_note", { exercise_id: id });
-    const ex = await getNote(env, userId, id);
-    return E("✏️ Заметка к «" + EX[id][0] + "»" + (ex ? "\n\nСейчас:\n" + ex : "\n\nЗаметки пока нет.") + "\n\nНапиши новый текст (заменит старый).", navMenu("ex:" + id));
-  }
-  if (data.startsWith("fav:")) { const id = data.split(":")[1]; await toggleFav(env, userId, id); return E(await exerciseText(env, userId, id), await exerciseMenu(env, userId, id)); }
-  if (data.startsWith("tech:")) { const id = data.split(":")[1]; return E("📚 Техника — " + EX[id][0] + "\n\n" + (TECH[id] || "Делай движение подконтрольно, без рывков, в полной амплитуде. Спина в нейтральном положении, дыхание ровное: выдох на усилии. Вес такой, чтобы техника не ломалась."), navMenu("ex:" + id)); }
-
-  // ---- Программы ----
-  if (data === "programs") return E("📋 Программы тренировок", programsMenu());
-  if (data === "program_full") return E("Фуллбади:", programListMenu("fb"));
-  if (data === "program_split") return E("Сплиты:", programListMenu("split"));
-  if (data.startsWith("program:")) { const id = data.split(":")[1]; return E(programText(id), programMenu(id)); }
-  if (data.startsWith("saveprog:")) {
-    const id = data.split(":")[1];
-    await saveProgram(env, userId, PROGRAMS[id].name, "suggested", PROGRAMS[id]);
-    return E("✅ Сохранено в Мои тренировки:\n\n" + PROGRAMS[id].name, navMenu("my_trainings"));
-  }
-  if (data === "prog_train") return E("🎯 Тренировка по программе\n\nОткуда берём?", { inline_keyboard: [
-    [{ text: "Готовые: Фуллбади", callback_data: "ptrain_full" }],
-    [{ text: "Готовые: Сплиты", callback_data: "ptrain_split" }],
-    [{ text: "🗂 Мои тренировки", callback_data: "ptrain_my" }],
-    [{ text: "Назад", callback_data: "programs" }, { text: "Главное меню", callback_data: "menu" }]
-  ]});
-  if (data === "ptrain_full" || data === "ptrain_split") {
-    const type = data === "ptrain_full" ? "fb" : "split";
-    const rows = Object.keys(PROGRAMS).filter(id => id.startsWith(type + "_")).map(id => [{ text: PROGRAMS[id].name, callback_data: "pstart:s:" + id }]);
-    rows.push([{ text: "Назад", callback_data: "prog_train" }, { text: "Главное меню", callback_data: "menu" }]);
-    return E("Выбери программу:", { inline_keyboard: rows });
-  }
-  if (data === "ptrain_my") {
-    const list = await supabaseGet(env, "custom_programs?user_id=eq." + userId + "&select=id,name&order=created_at.desc&limit=20");
-    const rows = list.map(r => [{ text: r.name, callback_data: "pstart:c:" + r.id }]);
-    rows.push([{ text: "Назад", callback_data: "prog_train" }, { text: "Главное меню", callback_data: "menu" }]);
-    return E(list.length ? "Выбери программу:" : "Пусто. Создай программу в Программы → Создать.", { inline_keyboard: rows });
-  }
-  if (data.startsWith("pstart:")) return programDayPick(env, cq, data);
-  if (data.startsWith("pday:")) return startProgramDay(env, cq, data);
-
-  // ---- Мои тренировки / конструктор ----
-  if (data === "my_trainings") return E(await myTrainingsText(env, userId), await myTrainingsMenu(env, userId));
-  if (data.startsWith("myprog:")) { const id = data.split(":")[1]; return E(await customProgramText(env, id), customProgramMenu(id)); }
-  if (data.startsWith("delprog:")) { const id = data.split(":")[1]; await supabaseDelete(env, "custom_programs?id=eq." + id); return E("Программа удалена.", navMenu("my_trainings")); }
-  if (data === "custom_program") { await setState(env, userId, "custom_name", {}); return E("➕ Новая программа\n\nНапиши название одним сообщением.", navMenu("my_trainings")); }
-  if (data.startsWith("editprog:")) { const id = data.split(":")[1]; return openEditor(env, cq, id); }
-  if (data.startsWith("ce:")) return openEditor(env, cq, data.split(":")[1]);
-  if (data.startsWith("cead:")) return editorAddDay(env, cq, data.split(":")[1]);
-  if (data.startsWith("cdd:")) { const [, id, day] = data.split(":"); return editorDelDay(env, cq, id, Number(day)); }
-  if (data.startsWith("cg:")) { const [, id, day] = data.split(":"); return E("Категория:", catMenu(id, day)); }
-  if (data.startsWith("ccat:")) { const [, id, day, ci] = data.split(":"); return E("Упражнение:", catExMenu(id, day, Number(ci))); }
-  if (data.startsWith("cex:")) { const [, id, day, exId] = data.split(":"); return E(EX[exId][0] + "\n\nСколько подходов?", setsMenu(id, day, exId)); }
-  if (data.startsWith("cset:")) { const [, id, day, exId, sets] = data.split(":"); return E(EX[exId][0] + " — " + sets + " подх.\n\nСколько повторов?", repsMenu(id, day, exId, sets)); }
-  if (data.startsWith("creps:")) return editorAddItem(env, cq, data);
-  if (data.startsWith("cdel:")) return editorDelItem(env, cq, data);
-  if (data.startsWith("cmu:")) return editorMove(env, cq, data, -1);
-  if (data.startsWith("cmd:")) return editorMove(env, cq, data, 1);
-
-  // ---- Подбор ----
-  if (data === "pick") { await setState(env, userId, "pick", {}); return E("🧩 Подбор тренировки\n\nКак тренируем ноги?", pickMenu("legs")); }
-  if (data.startsWith("pick:")) return handlePick(env, cq, data);
-
-  // ---- Аналитика ----
-  if (data === "analytics") return E("📊 Аналитика", analyticsMenu());
-  if (data === "an_summary") return E(await analyticsSummary(env, userId), navMenu("analytics"));
-  if (data === "an_groups") return analyticsGroups(env, cq);
-  if (data === "an_visits") return analyticsVisits(env, cq);
-  if (data === "an_last") return E(await lastWorkoutsText(env, userId), navMenu("analytics"));
-  if (data === "an_records") return E(await recordsText(env, userId), navMenu("analytics"));
-  if (data === "an_energy") return E(await energyText(env, userId), navMenu("analytics"));
-  if (data === "an_export") return analyticsExport(env, cq);
-
-  // ---- Профиль ----
-  if (data === "profile") return E(await profileText(env, cq.from), profileMenu());
-  if (data === "profile_edit") { await setState(env, userId, "prof_height", {}); return E("✏️ Заполнение профиля\n\nВведи рост в см (например 180).", navMenu("profile")); }
-  if (data.startsWith("prof_sex:")) { await supabasePatch(env, "users?id=eq." + userId, { sex: data.split(":")[1] }); return E("Пол сохранён.\n\nУровень активности?", activityMenu()); }
-  if (data.startsWith("prof_activity:")) { await supabasePatch(env, "users?id=eq." + userId, { activity: data.split(":")[1] }); await clearState(env, userId); return E(await profileText(env, cq.from), profileMenu()); }
-  if (data === "privacy") return E(privacyHeader(), await privacyMenu(env, userId));
-  if (data.startsWith("priv:")) {
-    const field = "priv_" + data.split(":")[1];
-    const u = await getUser(env, userId);
-    await supabasePatch(env, "users?id=eq." + userId, { [field]: !(u && u[field] !== false) });
-    return E(privacyHeader(), await privacyMenu(env, userId));
-  }
-
-  // ---- Восстановление ----
-  if (data === "recovery") return E("🧖 Восстановление\n\nСон и баня — половина результата. Выбери раздел:", recoveryMenu());
-  if (data === "rec_sleep") return E(sleepText(), navMenu("recovery"));
-  if (data === "rec_sauna") return E(saunaText(), navMenu("recovery"));
-
-  // ---- Друзья ----
-  if (data === "friends") return E("👥 Друзья", friendsMenu());
-  if (data === "friend_add") { await setState(env, userId, "friend_add", {}); return E("Добавить друга\n\nПусть друг откроет Профиль и пришлёт свой ID. Введи ID сообщением.", navMenu("friends")); }
-  if (data === "friend_list") return E(await friendListText(env, userId), await friendListMenu(env, userId));
-  if (data === "friend_requests") return E("Заявки в друзья:", await friendRequestsMenu(env, userId));
-  if (data.startsWith("frq_ac:")) return acceptFriend(env, cq, Number(data.split(":")[1]));
-  if (data.startsWith("frq_de:")) return declineFriend(env, cq, Number(data.split(":")[1]));
-  if (data.startsWith("fdel:")) { const fid = Number(data.split(":")[1]); await removeFriend(env, userId, fid); return E(await friendListText(env, userId), await friendListMenu(env, userId)); }
-  if (data.startsWith("fview:")) return E(await friendViewText(env, userId, Number(data.split(":")[1])), navMenu("friend_list"));
-  if (data === "friend_msg") return E("✉️ Сообщение друзьям", broadcastMenu());
-  if (data.startsWith("bcast:")) return sendTemplate(env, cq, Number(data.split(":")[1]));
-  if (data === "bcast_custom") { await setState(env, userId, "friend_broadcast", {}); return E("Напиши сообщение — отправлю всем твоим друзьям.", navMenu("friend_msg")); }
-  if (data === "joint") return E("🤝 Совместная тренировка\n\nВыбери друга:", await jointPickMenu(env, userId));
-  if (data.startsWith("jinv:")) return jointInvite(env, cq, Number(data.split(":")[1]));
-  if (data.startsWith("jac:")) return jointAccept(env, cq, Number(data.split(":")[1]));
-  if (data.startsWith("jde:")) return jointDecline(env, cq, Number(data.split(":")[1]));
-
-  // ---- Рейтинг ----
-  if (data === "leaderboard") return E("🏆 Рейтинг среди друзей (за 7 дней)", leaderboardMenu());
-  if (data.startsWith("lb:")) return leaderboard(env, cq, data.split(":")[1]);
-
-  // ---- Челленджи ----
-  if (data === "challenges") return E(await challengesText(env, userId), await challengesMenu(env, userId));
-  if (data === "ch_new") return E("🎯 Новый челлендж\n\nГотовые шаблоны или свой:", challengeTemplatesMenu());
-  if (data.startsWith("chtpl:")) return createChallengeTemplate(env, cq, Number(data.split(":")[1]));
-  if (data === "ch_custom") return E("Тип челленджа:", { inline_keyboard: [
-    [{ text: "Кол-во тренировок", callback_data: "chc:workouts" }],
-    [{ text: "Тоннаж (кг)", callback_data: "chc:tonnage" }],
-    [{ text: "Назад", callback_data: "challenges" }]
-  ]});
-  if (data.startsWith("chc:")) { const t = data.split(":")[1]; return E("Период:", { inline_keyboard: [
-    [{ text: "Неделя", callback_data: "chcp:" + t + ":week" }],
-    [{ text: "Месяц", callback_data: "chcp:" + t + ":month" }],
-    [{ text: "Назад", callback_data: "ch_custom" }]
-  ]}); }
-  if (data.startsWith("chcp:")) { const [, t, per] = data.split(":"); return E("Цель:", goalMenu(t, per)); }
-  if (data.startsWith("chmk:")) return createChallengeCustom(env, cq, data);
-  if (data.startsWith("ch_join:")) return joinChallenge(env, cq, Number(data.split(":")[1]));
-  if (data.startsWith("ch_view:")) return E(await challengeViewText(env, Number(data.split(":")[1])), navMenu("challenges"));
-  if (data.startsWith("ch_leave:")) { const id = Number(data.split(":")[1]); await supabaseDelete(env, "challenge_members?challenge_id=eq." + id + "&user_id=eq." + userId); return E(await challengesText(env, userId), await challengesMenu(env, userId)); }
-
-  // ---- Питание ----
-  if (data === "food_supps") return E("🍽 Питание и БАДы", foodMenu());
-  if (data === "food_principles") return E(nutritionText(), navMenu("food_supps"));
-  if (data === "food_recipes") return E("🥗 Рецепты\n\nВыбери приём пищи:", recipesMenu());
-  if (data.startsWith("recipe:")) return E(recipeText(data.split(":")[1]), navMenu("food_recipes"));
-  if (data === "supps") return E(suppsText(), navMenu("food_supps"));
-  if (data === "water") return E(await waterText(env, userId), waterMenu());
-  if (data.startsWith("water_add:")) { await addWater(env, userId, Number(data.split(":")[1])); return E(await waterText(env, userId), waterMenu()); }
-  if (data === "water_custom") { await setState(env, userId, "water_custom", {}); return E("💧 Введи объём в мл (например 300).", navMenu("water")); }
-  if (data === "water_goal") { await setState(env, userId, "water_goal", {}); return E("🎯 Введи цель в мл (например 2500).", navMenu("water")); }
-}
-
-// ===================== ГЛАВНОЕ МЕНЮ =====================
-
-async function mainText(env, from) {
-  let t = "🏠 Главное меню\n\nПривет, " + (from.first_name || "друг") + "! 💪 Что делаем сегодня?";
-  const stale = await staleGroup(env, from.id);
-  if (stale) t += "\n\n💤 Давно не качал: " + stale.group + " (" + stale.days + " дн.)";
-  return t;
-}
-
-function mainMenu() {
-  return { inline_keyboard: [
-    [{ text: "🏋️ Тренировки", callback_data: "trainings" }],
-    [{ text: "📋 Программы тренировок", callback_data: "programs" }],
-    [{ text: "📊 Аналитика", callback_data: "analytics" }],
-    [{ text: "🍽 Питание и БАДы", callback_data: "food_supps" }],
-    [{ text: "🧖 Восстановление", callback_data: "recovery" }],
-    [{ text: "👥 Друзья", callback_data: "friends" }],
-    [{ text: "🏆 Челленджи", callback_data: "challenges" }],
-    [{ text: "👤 Профиль", callback_data: "profile" }]
-  ]};
-}
-
-function trainingsMenu() {
-  return { inline_keyboard: [
-    [{ text: "✍️ Записать результат", callback_data: "log" }],
-    [{ text: "▶️ Начать тренировку", callback_data: "sess_start" }],
-    [{ text: "⏹ Закончить тренировку", callback_data: "sess_end" }],
-    [{ text: "🔁 Повторить прошлую", callback_data: "repeat_last" }],
-    [{ text: "⭐ Избранные", callback_data: "fav_list" }],
-    [{ text: "🎲 Спонтанное упражнение", callback_data: "spont" }],
-    [{ text: "Главное меню", callback_data: "menu" }]
-  ]};
-}
-
-function programsMenu() {
-  return { inline_keyboard: [
-    [{ text: "🆓 Свободная тренировка", callback_data: "free" }],
-    [{ text: "🎯 Тренировка по программе", callback_data: "prog_train" }],
-    [{ text: "Фуллбади", callback_data: "program_full" }],
-    [{ text: "Сплиты", callback_data: "program_split" }],
-    [{ text: "🗂 Мои тренировки", callback_data: "my_trainings" }],
-    [{ text: "➕ Создать программу", callback_data: "custom_program" }],
-    [{ text: "🧩 Подобрать тренировку", callback_data: "pick" }],
-    [{ text: "Главное меню", callback_data: "menu" }]
-  ]};
-}
-
-function muscleGroupsMenu(back) {
-  return { inline_keyboard: [
-    [{ text: "Грудь", callback_data: "group:chest" }],
-    [{ text: "Спина", callback_data: "group:back" }],
-    [{ text: "Ноги", callback_data: "group:legs" }],
-    [{ text: "Плечи", callback_data: "group:shoulders" }],
-    [{ text: "Руки", callback_data: "group:arms" }],
-    [{ text: "Пресс", callback_data: "group:abs" }],
-    [{ text: "Кардио", callback_data: "group:cardio" }],
-    [{ text: "Назад", callback_data: back === "log" ? "trainings" : "programs" }, { text: "Главное меню", callback_data: "menu" }]
-  ]};
-}
-
-function subGroupsMenu(g) {
-  const rows = Object.keys(SUBGROUPS[g].subs).map(s => [{ text: SUBGROUPS[g].subs[s][0], callback_data: "sub:" + g + ":" + s }]);
-  rows.push([{ text: "Назад", callback_data: "free" }, { text: "Главное меню", callback_data: "menu" }]);
-  return { inline_keyboard: rows };
-}
-
-function exercisesMenu(ids, back) {
-  const rows = ids.map(id => [{ text: EX[id][0], callback_data: "ex:" + id }]);
-  rows.push([{ text: "Назад", callback_data: back }, { text: "Главное меню", callback_data: "menu" }]);
-  return { inline_keyboard: rows };
-}
-
-async function exerciseText(env, userId, id) {
-  const e = EX[id];
-  let t = e[0] + "\n\nГруппа: " + e[1] + (e[2] ? "\nРаздел: " + e[2] : "");
-  const note = await getNote(env, userId, id);
-  if (note) t += "\n\n✏️ Заметка: " + note;
-  return t + "\n\nВыбери действие.";
-}
-
-async function exerciseMenu(env, userId, id) {
-  const fav = await isFav(env, userId, id);
-  return { inline_keyboard: [
-    [{ text: "Записать подход", callback_data: "set:" + id }],
-    [{ text: "История", callback_data: "hist:" + id }, { text: "📚 Техника", callback_data: "tech:" + id }],
-    [{ text: "✏️ Заметка", callback_data: "note:" + id }, { text: fav ? "★ В избранном" : "⭐ В избранное", callback_data: "fav:" + id }],
-    [{ text: "Назад", callback_data: "free" }, { text: "Главное меню", callback_data: "menu" }]
-  ]};
-}
-
-// ===================== ЗАПИСЬ ПОДХОДА + PR =====================
-
-async function handleSetInput(env, msg, st) {
-  const chatId = msg.chat.id;
-  const userId = msg.from.id;
-  const exId = st.data.exercise_id;
-  const parts = msg.text.trim().replace(",", ".").split(/\s+/);
-  const weight = Number(parts[0]);
-  const reps = Number(parts[1]);
-  if (!weight || !reps) return sendMessage(env, chatId, "Нужно так: 80 8", navMenu("ex:" + exId));
-
-  await ensureVisitOncePer3Hours(env, msg.from);
-  const prev = await supabaseGet(env, "workout_sets?user_id=eq." + userId + "&exercise_id=eq." + exId + "&select=weight&order=weight.desc&limit=1");
-  const prevMax = prev[0] ? Number(prev[0].weight) : 0;
-  const session = await activeSession(env, userId);
-
-  await supabaseInsert(env, "workout_sets", {
-    user_id: userId, exercise_id: exId, exercise_name: EX[exId][0],
-    weight, reps, session_id: session ? session.id : null
-  });
-  await clearState(env, userId);
-
-  let t = "✅ Сохранено\n\n" + EX[exId][0] + "\n" + weight + " кг x " + reps;
-  if (weight > prevMax && prevMax > 0) t += "\n\n🔥 Новый личный рекорд по весу!";
-  t += "\n\nОценка 1ПМ ≈ " + Math.round(weight * (1 + reps / 30)) + " кг";
-
-  return sendMessage(env, chatId, t, { inline_keyboard: [
-    [{ text: "Ещё подход", callback_data: "set:" + exId }, { text: "✏️ Заметка", callback_data: "note:" + exId }],
-    [{ text: "История", callback_data: "hist:" + exId }],
-    [{ text: "Назад", callback_data: "ex:" + exId }, { text: "Главное меню", callback_data: "menu" }]
-  ]});
-}
-
-async function handleSetNote(env, msg, st) {
-  const exId = st.data.exercise_id;
-  await saveNote(env, msg.from.id, exId, msg.text.trim());
-  await clearState(env, msg.from.id);
-  return sendMessage(env, msg.chat.id, "✏️ Заметка сохранена.", navMenu("ex:" + exId));
-}
-
-async function historyText(env, userId, exId) {
-  const rows = await supabaseGet(env, "workout_sets?user_id=eq." + userId + "&exercise_id=eq." + exId + "&select=weight,reps,created_at&order=created_at.desc&limit=12");
-  let t = "История\n\n" + EX[exId][0] + "\n";
-  if (!rows.length) return t + "\nПока нет записей.";
-  for (const r of rows) t += "\n• " + fmtDate(r.created_at) + " — " + r.weight + " кг x " + r.reps;
-  return t;
-}
-
-// ===================== СЕССИИ =====================
-
-function energyMenu() {
-  return { inline_keyboard: [
-    [{ text: "1 😩", callback_data: "energy:1" }, { text: "2 😕", callback_data: "energy:2" }, { text: "3 😐", callback_data: "energy:3" }, { text: "4 🙂", callback_data: "energy:4" }, { text: "5 💪", callback_data: "energy:5" }],
-    [{ text: "Пропустить", callback_data: "energy:0" }],
-    [{ text: "Назад", callback_data: "trainings" }]
-  ]};
-}
-
-async function activeSession(env, userId) {
-  const rows = await supabaseGet(env, "workout_sessions?status=eq.active&or=(user_id.eq." + userId + ",partner_id.eq." + userId + ")&select=id,user_id,partner_id,kind,current_exercise_id,started_at&order=started_at.desc&limit=1");
-  return rows[0] || null;
-}
-
-async function startSession(env, cq, energy) {
-  const userId = cq.from.id;
-  const ex = await activeSession(env, userId);
-  if (ex) return editMessage(env, cq.message.chat.id, cq.message.message_id, "У тебя уже идёт тренировка. Закончи её, чтобы начать новую.", trainingsMenu());
-  await supabaseInsert(env, "workout_sessions", { user_id: userId, kind: "solo", status: "active", energy: energy || null });
-  await ensureVisitOncePer3Hours(env, cq.from);
-  return editMessage(env, cq.message.chat.id, cq.message.message_id, "▶️ Тренировка начата! Записывай подходы — время и тоннаж посчитаются автоматически.\n\nКогда закончишь — жми «Закончить тренировку».", trainingsMenu());
-}
-
-async function endSession(env, cq) {
-  const userId = cq.from.id;
-  const chatId = cq.message.chat.id;
-  const s = await activeSession(env, userId);
-  if (!s) return editMessage(env, chatId, cq.message.message_id, "Активной тренировки нет. Начни её кнопкой «Начать тренировку».", trainingsMenu());
-  const ended = new Date().toISOString();
-  await supabasePatch(env, "workout_sessions?id=eq." + s.id, { status: "ended", ended_at: ended });
-
-  const sets = await supabaseGet(env, "workout_sets?session_id=eq." + s.id + "&user_id=eq." + userId + "&select=exercise_name,weight,reps,created_at&order=created_at.asc");
-  const mins = Math.max(1, Math.round((Date.now() - new Date(s.started_at).getTime()) / 60000));
-  let tonnage = 0; const byEx = {};
-  for (const x of sets) { const v = Number(x.weight) * Number(x.reps); tonnage += v; byEx[x.exercise_name] = (byEx[x.exercise_name] || 0) + v; }
-
-  let cap = "🏁 Тренировка завершена!\n\n⏱ Время: " + mins + " мин\n🏋️ Подходов: " + sets.length + "\n📦 Тоннаж: " + fmtNum(tonnage) + " кг";
-  if (sets.length) { cap += "\n\nУпражнения:"; for (const n in byEx) cap += "\n• " + n + " — " + fmtNum(byEx[n]) + " кг"; }
-
-  const labels = Object.keys(byEx);
-  if (labels.length) {
-    const url = chartUrl({ type: "bar", data: { labels, datasets: [{ label: "Тоннаж, кг", data: labels.map(n => Math.round(byEx[n])), backgroundColor: "#4f8cff" }] },
-      options: { plugins: { title: { display: true, text: "Итоги: " + mins + " мин · " + fmtNum(tonnage) + " кг" }, legend: { display: false } } } });
-    await sendPhoto(env, chatId, url, cap, trainingsMenu());
-  } else {
-    await sendMessage(env, chatId, cap + "\n\nВ этот раз подходы не записаны.", trainingsMenu());
-  }
-}
-
-async function repeatLast(env, cq) {
-  const userId = cq.from.id;
-  const chatId = cq.message.chat.id;
-  const last = await supabaseGet(env, "workout_sessions?user_id=eq." + userId + "&status=eq.ended&select=id&order=ended_at.desc&limit=1");
-  if (!last.length) return editMessage(env, chatId, cq.message.message_id, "Прошлых завершённых тренировок пока нет.", trainingsMenu());
-  const sets = await supabaseGet(env, "workout_sets?session_id=eq." + last[0].id + "&select=exercise_id&order=created_at.asc");
-  const ids = [...new Set(sets.map(s => s.exercise_id))].filter(Boolean);
-  if (!ids.length) return editMessage(env, chatId, cq.message.message_id, "В прошлой тренировке нет записанных упражнений.", trainingsMenu());
-  const ex = await activeSession(env, userId);
-  if (!ex) await supabaseInsert(env, "workout_sessions", { user_id: userId, kind: "solo", status: "active" });
-  await ensureVisitOncePer3Hours(env, cq.from);
-  const rows = ids.map(id => [{ text: EX[id] ? EX[id][0] : id, callback_data: "ex:" + id }]);
-  rows.push([{ text: "⏹ Закончить тренировку", callback_data: "sess_end" }]);
-  rows.push([{ text: "Главное меню", callback_data: "menu" }]);
-  return editMessage(env, chatId, cq.message.message_id, "🔁 Повтор прошлой тренировки. Упражнения подтянуты — записывай подходы:", { inline_keyboard: rows });
-}
-
-function spontMenu() {
-  return { inline_keyboard: [
-    ...Object.keys(GROUPS).map(g => [{ text: GROUPS[g][0], callback_data: "spont:" + g }]),
-    [{ text: "Плечи", callback_data: "spont:shoulders" }, { text: "Руки", callback_data: "spont:arms" }],
-    [{ text: "Любая", callback_data: "spont:any" }],
-    [{ text: "Назад", callback_data: "trainings" }]
-  ]};
-}
-
-async function spontaneous(env, cq, g) {
-  let pool = [];
-  if (g === "any") pool = Object.keys(EX);
-  else if (GROUPS[g]) pool = GROUPS[g][1];
-  else if (SUBGROUPS[g]) for (const s in SUBGROUPS[g].subs) pool = pool.concat(SUBGROUPS[g].subs[s][1]);
-  const id = pool[Math.floor(Math.random() * pool.length)];
-  return editMessage(env, cq.message.chat.id, cq.message.message_id, "🎲 Тебе выпало:\n\n" + (await exerciseText(env, cq.from.id, id)), await exerciseMenu(env, cq.from.id, id));
-}
-
-// ===================== ПРОГРАММЫ =====================
-
-function programListMenu(type) {
-  const rows = [];
-  for (const id of Object.keys(PROGRAMS)) if (id.startsWith(type + "_")) rows.push([{ text: PROGRAMS[id].name, callback_data: "program:" + id }]);
-  rows.push([{ text: "Назад", callback_data: "programs" }, { text: "Главное меню", callback_data: "menu" }]);
-  return { inline_keyboard: rows };
-}
-
-function programText(id) { return renderProgram(normalizeProgram(PROGRAMS[id])); }
-
-function programMenu(id) {
-  return { inline_keyboard: [
-    [{ text: "▶️ Заниматься по программе", callback_data: "pstart:s:" + id }],
-    [{ text: "💾 Сохранить в мои", callback_data: "saveprog:" + id }],
-    [{ text: "Назад", callback_data: id.startsWith("fb_") ? "program_full" : "program_split" }, { text: "Главное меню", callback_data: "menu" }]
-  ]};
-}
-
-function renderProgram(pr) {
-  let t = pr.name + "\n\n";
-  pr.days.forEach((d, i) => {
-    t += (d.title || ("День " + (i + 1))) + "\n";
-    d.items.forEach(it => t += "• " + itemLabel(it) + "\n");
-    t += "\n";
-  });
-  return t.trim();
-}
-
-function itemLabel(it) {
-  if (it.ex && EX[it.ex]) return EX[it.ex][0] + (it.sets && it.reps ? " " + it.sets + "x" + it.reps : "");
-  return it.label || "";
-}
-
-function normalizeProgram(data) {
-  const name = data.name || "Программа";
-  const days = (data.days || []).map((d, i) => {
-    if (Array.isArray(d)) {
-      const items = d.map(s => parseLine(String(s)));
-      let title = "День " + (i + 1);
-      if (items.length && !items[0].ex && !/\d/.test(items[0].label)) { title = items[0].label; items.shift(); }
-      return { title, items };
-    }
-    return { title: d.title || ("День " + (i + 1)), items: (d.items || []).map(it => ({ ex: it.ex || null, label: it.label || (it.ex && EX[it.ex] ? EX[it.ex][0] : ""), sets: it.sets || null, reps: it.reps || null })) };
-  });
-  return { name, days };
-}
-
-function parseLine(s) {
-  const m = s.match(/^(.*?)[\s]+(\d+)x(\d+)\s*$/);
-  if (m) { const ex = NAME2ID[m[1].trim().toLowerCase()] || null; return { ex, label: s, sets: Number(m[2]), reps: Number(m[3]) }; }
-  const m2 = s.match(/^(.*?)[\s]+\d+\s*$/);
-  if (m2) { const ex = NAME2ID[m2[1].trim().toLowerCase()] || null; if (ex) return { ex, label: s, sets: null, reps: null }; }
-  const ex2 = NAME2ID[s.trim().toLowerCase()] || null;
-  return { ex: ex2, label: s, sets: null, reps: null };
-}
-
-async function programDayPick(env, cq, data) {
-  const [, src, id] = data.split(":");
-  const pr = await loadProgram(env, src, id);
-  if (!pr) return editMessage(env, cq.message.chat.id, cq.message.message_id, "Программа не найдена.", navMenu("programs"));
-  const rows = pr.days.map((d, i) => [{ text: (d.title || ("День " + (i + 1))), callback_data: "pday:" + src + ":" + id + ":" + i }]);
-  rows.push([{ text: "Назад", callback_data: "prog_train" }, { text: "Главное меню", callback_data: "menu" }]);
-  return editMessage(env, cq.message.chat.id, cq.message.message_id, "🎯 " + pr.name + "\n\nВыбери день:", { inline_keyboard: rows });
-}
-
-async function startProgramDay(env, cq, data) {
-  const [, src, id, dayIdx] = data.split(":");
-  const userId = cq.from.id;
-  const pr = await loadProgram(env, src, id);
-  const day = pr.days[Number(dayIdx)];
-  if (!day) return editMessage(env, cq.message.chat.id, cq.message.message_id, "День не найден.", navMenu("programs"));
-  const ex = await activeSession(env, userId);
-  if (!ex) await supabaseInsert(env, "workout_sessions", { user_id: userId, kind: "program", status: "active", program_id: src + ":" + id, day_index: Number(dayIdx) });
-  await ensureVisitOncePer3Hours(env, cq.from);
-
-  let t = "🎯 " + pr.name + " — " + (day.title || ("День " + (Number(dayIdx) + 1))) + "\n\nЖми упражнение, чтобы записать подход. Прошлые результаты видно внутри.\n";
-  const rows = [];
-  for (const it of day.items) {
-    if (it.ex && EX[it.ex]) rows.push([{ text: itemLabel(it), callback_data: "ex:" + it.ex }]);
-    else t += "\n• " + (it.label || "") + " (без записи)";
-  }
-  rows.push([{ text: "⏹ Закончить тренировку", callback_data: "sess_end" }]);
-  rows.push([{ text: "Главное меню", callback_data: "menu" }]);
-  return editMessage(env, cq.message.chat.id, cq.message.message_id, t, { inline_keyboard: rows });
-}
-
-async function loadProgram(env, src, id) {
-  if (src === "s") return PROGRAMS[id] ? normalizeProgram(PROGRAMS[id]) : null;
-  const rows = await supabaseGet(env, "custom_programs?id=eq." + id + "&select=name,data&limit=1");
-  if (!rows.length) return null;
-  const data = rows[0].data || {};
-  if (!data.name) data.name = rows[0].name;
-  return normalizeProgram(data);
-}
-
-// ===================== КОНСТРУКТОР =====================
-
-async function handleCustomName(env, msg) {
-  const name = msg.text.trim();
-  await supabaseInsert(env, "custom_programs", { user_id: msg.from.id, name, source: "custom", data: { name, days: [{ title: "День 1", items: [] }] } });
-  await clearState(env, msg.from.id);
-  const rows = await supabaseGet(env, "custom_programs?user_id=eq." + msg.from.id + "&select=id&order=created_at.desc&limit=1");
-  const id = rows[0] ? rows[0].id : null;
-  return sendMessage(env, msg.chat.id, "Программа «" + name + "» создана. Открываю конструктор.", id ? await editorKeyboard(env, id) : navMenu("my_trainings"));
-}
-
-async function getProgramRow(env, id) {
-  const rows = await supabaseGet(env, "custom_programs?id=eq." + id + "&select=id,name,data&limit=1");
-  return rows[0] || null;
-}
-
-async function saveProgramData(env, id, data) {
-  await supabasePatch(env, "custom_programs?id=eq." + id, { data });
-}
-
-async function editorText(env, id) {
-  const row = await getProgramRow(env, id);
-  if (!row) return "Программа не найдена.";
-  const pr = normalizeProgram(row.data || { name: row.name, days: [] });
-  return "🛠 Конструктор: " + pr.name + "\n\n" + renderProgram(pr) + "\n\nДобавляй и убирай упражнения кнопками ниже.";
-}
-
-async function editorKeyboard(env, id) {
-  const row = await getProgramRow(env, id);
-  const pr = normalizeProgram(row.data || { name: row.name, days: [{ title: "День 1", items: [] }] });
-  const rows = [];
-  pr.days.forEach((d, di) => {
-    rows.push([{ text: "— " + (d.title || ("День " + (di + 1))) + " —", callback_data: "ce:" + id }]);
-    d.items.forEach((it, ii) => {
-      rows.push([
-        { text: itemLabel(it), callback_data: "ce:" + id },
-        { text: "⬆️", callback_data: "cmu:" + id + ":" + di + ":" + ii },
-        { text: "⬇️", callback_data: "cmd:" + id + ":" + di + ":" + ii },
-        { text: "❌", callback_data: "cdel:" + id + ":" + di + ":" + ii }
-      ]);
-    });
-    rows.push([{ text: "➕ Упражнение в " + (d.title || ("День " + (di + 1))), callback_data: "cg:" + id + ":" + di }]);
-    if (pr.days.length > 1) rows.push([{ text: "🗑 Удалить " + (d.title || ("День " + (di + 1))), callback_data: "cdd:" + id + ":" + di }]);
-  });
-  rows.push([{ text: "➕ Добавить день", callback_data: "cead:" + id }]);
-  rows.push([{ text: "✅ Готово", callback_data: "my_trainings" }, { text: "Главное меню", callback_data: "menu" }]);
-  return { inline_keyboard: rows };
-}
-
-async function openEditor(env, cq, id) {
-  return editMessage(env, cq.message.chat.id, cq.message.message_id, await editorText(env, id), await editorKeyboard(env, id));
-}
-
-async function editorAddDay(env, cq, id) {
-  const row = await getProgramRow(env, id);
-  const pr = normalizeProgram(row.data || { name: row.name, days: [] });
-  pr.days.push({ title: "День " + (pr.days.length + 1), items: [] });
-  await saveProgramData(env, id, pr);
-  return openEditor(env, cq, id);
-}
-
-async function editorDelDay(env, cq, id, day) {
-  const row = await getProgramRow(env, id);
-  const pr = normalizeProgram(row.data || { name: row.name, days: [] });
-  if (pr.days.length > 1) pr.days.splice(day, 1);
-  await saveProgramData(env, id, pr);
-  return openEditor(env, cq, id);
-}
-
-function catMenu(id, day) {
-  const rows = CAT_ORDER.map((c, i) => [{ text: c, callback_data: "ccat:" + id + ":" + day + ":" + i }]);
-  rows.push([{ text: "Назад", callback_data: "ce:" + id }]);
-  return { inline_keyboard: rows };
-}
-
-function catExMenu(id, day, ci) {
-  const cat = CAT_ORDER[ci];
-  const rows = (CATS[cat] || []).map(exId => [{ text: EX[exId][0], callback_data: "cex:" + id + ":" + day + ":" + exId }]);
-  rows.push([{ text: "Назад", callback_data: "cg:" + id + ":" + day }]);
-  return { inline_keyboard: rows };
-}
-
-function setsMenu(id, day, exId) {
-  const rows = [[2, 3, 4, 5].map(n => ({ text: n + " подх.", callback_data: "cset:" + id + ":" + day + ":" + exId + ":" + n }))];
-  rows.push([{ text: "Назад", callback_data: "ccat:" + id + ":" + day + ":0" }]);
-  return { inline_keyboard: rows };
-}
-
-function repsMenu(id, day, exId, sets) {
-  const rows = [[6, 8, 10, 12, 15, 20].map(n => ({ text: n + " повт.", callback_data: "creps:" + id + ":" + day + ":" + exId + ":" + sets + ":" + n }))];
-  rows.push([{ text: "Назад", callback_data: "cex:" + id + ":" + day + ":" + exId }]);
-  return { inline_keyboard: rows };
-}
-
-async function editorAddItem(env, cq, data) {
-  const [, id, day, exId, sets, reps] = data.split(":");
-  const row = await getProgramRow(env, id);
-  const pr = normalizeProgram(row.data || { name: row.name, days: [] });
-  const d = pr.days[Number(day)];
-  if (d) d.items.push({ ex: exId, label: EX[exId][0], sets: Number(sets), reps: Number(reps) });
-  await saveProgramData(env, id, pr);
-  return openEditor(env, cq, id);
-}
-
-async function editorDelItem(env, cq, data) {
-  const [, id, day, idx] = data.split(":");
-  const row = await getProgramRow(env, id);
-  const pr = normalizeProgram(row.data || { name: row.name, days: [] });
-  const d = pr.days[Number(day)];
-  if (d) d.items.splice(Number(idx), 1);
-  await saveProgramData(env, id, pr);
-  return openEditor(env, cq, id);
-}
-
-async function editorMove(env, cq, data, dir) {
-  const [, id, day, idx] = data.split(":");
-  const row = await getProgramRow(env, id);
-  const pr = normalizeProgram(row.data || { name: row.name, days: [] });
-  const d = pr.days[Number(day)];
-  const i = Number(idx), j = i + dir;
-  if (d && j >= 0 && j < d.items.length) { const tmp = d.items[i]; d.items[i] = d.items[j]; d.items[j] = tmp; }
-  await saveProgramData(env, id, pr);
-  return openEditor(env, cq, id);
-}
-
-async function myTrainingsText(env, userId) {
-  const rows = await supabaseGet(env, "custom_programs?user_id=eq." + userId + "&select=id,name,source&order=created_at.desc");
-  if (!rows.length) return "🗂 Мои тренировки\n\nПусто. Сохрани готовую программу или создай свою.";
-  let t = "🗂 Мои тренировки\n";
-  rows.forEach(r => t += "\n• " + r.name + " (" + r.source + ")");
-  return t;
-}
-
-async function myTrainingsMenu(env, userId) {
-  const list = await supabaseGet(env, "custom_programs?user_id=eq." + userId + "&select=id,name&order=created_at.desc&limit=20");
-  const rows = list.map(r => [{ text: r.name, callback_data: "myprog:" + r.id }]);
-  rows.push([{ text: "➕ Создать программу", callback_data: "custom_program" }]);
-  rows.push([{ text: "Назад", callback_data: "programs" }, { text: "Главное меню", callback_data: "menu" }]);
-  return { inline_keyboard: rows };
-}
-
-async function customProgramText(env, id) {
-  const row = await getProgramRow(env, id);
-  if (!row) return "Программа не найдена.";
-  return renderProgram(normalizeProgram(row.data || { name: row.name, days: [] }));
-}
-
-function customProgramMenu(id) {
-  return { inline_keyboard: [
-    [{ text: "▶️ Заниматься", callback_data: "pstart:c:" + id }],
-    [{ text: "🛠 Редактировать", callback_data: "editprog:" + id }],
-    [{ text: "🗑 Удалить", callback_data: "delprog:" + id }],
-    [{ text: "Назад", callback_data: "my_trainings" }, { text: "Главное меню", callback_data: "menu" }]
-  ]};
-}
-
-// ===================== ПОДБОР =====================
-
-function pickMenu(step) {
-  return { inline_keyboard: [
-    [{ text: "Чуть-чуть", callback_data: "pick:" + step + ":low" }],
-    [{ text: "Нормально", callback_data: "pick:" + step + ":mid" }],
-    [{ text: "Хорошо", callback_data: "pick:" + step + ":high" }],
-    [{ text: "Назад", callback_data: "programs" }]
-  ]};
-}
-
-async function handlePick(env, cq, data) {
-  const [, step, value] = data.split(":");
-  const userId = cq.from.id;
-  const st = await getState(env, userId);
-  const answers = st?.data || {};
-  answers[step] = value;
-  const next = { legs: "chest", chest: "back", back: "shoulders", shoulders: "arms" }[step];
-  if (next) {
-    await setState(env, userId, "pick", answers);
-    const names = { chest: "грудь", back: "спину", shoulders: "плечи", arms: "руки" };
-    return editMessage(env, cq.message.chat.id, cq.message.message_id, "Как тренируем " + names[next] + "?", pickMenu(next));
-  }
-  const program = buildPickedProgram(answers);
-  await supabaseInsert(env, "custom_programs", { user_id: userId, name: program.name, source: "picked", data: program });
-  await clearState(env, userId);
-  return editMessage(env, cq.message.chat.id, cq.message.message_id, "✅ Подобрал и сохранил в Мои тренировки.\n\n" + renderProgram(normalizeProgram(program)), navMenu("my_trainings"));
-}
-
-function buildPickedProgram(a) {
-  const day1 = ["Жим лёжа 3x8", "Тяга верхнего блока 3x10", "Платформа 3x12"];
-  const day2 = ["Жим на наклонной 3x10", "Тяга горизонтального блока 3x10", "Приседания 3x8"];
-  if (a.chest === "high") day1.push("Бабочка 3x15", "Кроссовер 3x15");
-  if (a.back === "high") day1.push("Пуловер 3x12", "Тяга верхнего блока в тренажёре 3x10");
-  if (a.legs === "high") day2.push("Разгибание на квадрицепс 3x15", "Задняя поверхность бедра в тренажёре 3x12");
-  if (a.shoulders === "high") day2.push("Подъём гантелей 4x15", "Бабочка на заднюю дельту 3x15");
-  if (a.arms === "high") day2.push("Подъём Z-грифа 3x12", "Разгибание на блоке 3x12");
-  if (a.chest === "mid") day1.push("Бабочка 3x12");
-  if (a.back === "mid") day1.push("Пуловер 3x12");
-  if (a.legs === "mid") day2.push("Разгибание на квадрицепс 3x12");
-  if (a.shoulders === "mid") day2.push("Подъём гантелей 3x15");
-  if (a.arms === "mid") day2.push("Подъём Z-грифа 2x12", "Разгибание на блоке 2x12");
-  return { name: "Подобранная программа", days: [day1, day2] };
-}
-
-// ===================== АНАЛИТИКА =====================
-
-function analyticsMenu() {
-  return { inline_keyboard: [
-    [{ text: "📈 Сводка", callback_data: "an_summary" }],
-    [{ text: "💪 По группам мышц", callback_data: "an_groups" }],
-    [{ text: "🗓 Посещения зала", callback_data: "an_visits" }],
-    [{ text: "📝 Последние тренировки", callback_data: "an_last" }],
-    [{ text: "🏅 Рекорды и 1ПМ", callback_data: "an_records" }],
-    [{ text: "⚡ Энергия и результат", callback_data: "an_energy" }],
-    [{ text: "📤 Экспорт за 30 дней", callback_data: "an_export" }],
-    [{ text: "Главное меню", callback_data: "menu" }]
-  ]};
-}
-
-async function allSets(env, userId, limit) {
-  return supabaseGet(env, "workout_sets?user_id=eq." + userId + "&select=exercise_id,exercise_name,weight,reps,created_at,session_id&order=created_at.desc&limit=" + (limit || 2000));
-}
-
-async function analyticsSummary(env, userId) {
-  const visits = await supabaseGet(env, "gym_visits?user_id=eq." + userId + "&select=visited_at&order=visited_at.desc&limit=2000");
-  const sets = await allSets(env, userId);
-  let tonnage = 0; const freq = {};
-  for (const s of sets) { tonnage += Number(s.weight) * Number(s.reps); freq[s.exercise_name] = (freq[s.exercise_name] || 0) + 1; }
-  const fav = Object.keys(freq).sort((a, b) => freq[b] - freq[a])[0];
-  const now = Date.now();
-  const week = sets.filter(s => now - new Date(s.created_at).getTime() < 7 * 864e5).length;
-  const month = sets.filter(s => now - new Date(s.created_at).getTime() < 30 * 864e5).length;
-  const streak = computeStreak(visits.map(v => v.visited_at));
-  return "📈 Сводка\n\n" +
-    "Посещений всего: " + visits.length + "\n" +
-    "🔥 Серия подряд: " + streak + " дн.\n" +
-    "Подходов всего: " + sets.length + "\n" +
-    "Подходов за неделю: " + week + "\n" +
-    "Подходов за месяц: " + month + "\n" +
-    "📦 Общий тоннаж: " + fmtNum(tonnage) + " кг\n" +
-    "⭐ Любимое упражнение: " + (fav || "—");
-}
-
-function groupOf(exId) { return EX[exId] ? EX[exId][1] : "Прочее"; }
-
-async function analyticsGroups(env, cq) {
-  const userId = cq.from.id;
-  const sets = await allSets(env, userId);
-  const now = Date.now();
-  const recent = sets.filter(s => now - new Date(s.created_at).getTime() < 30 * 864e5);
-  const byGroup = {};
-  for (const s of recent) byGroup[groupOf(s.exercise_id)] = (byGroup[groupOf(s.exercise_id)] || 0) + 1;
-  const labels = Object.keys(byGroup);
-  if (!labels.length) return editMessage(env, cq.message.chat.id, cq.message.message_id, "💪 За последние 30 дней подходов нет.", navMenu("analytics"));
-  labels.sort((a, b) => byGroup[b] - byGroup[a]);
-  let cap = "💪 Подходы по группам за 30 дней\n";
-  const max = byGroup[labels[0]];
-  for (const l of labels) { const f = Math.round(byGroup[l] / max * 10); cap += "\n" + l + ": " + byGroup[l] + "  " + "▰".repeat(f) + "▱".repeat(10 - f); }
-  const url = chartUrl({ type: "bar", data: { labels, datasets: [{ label: "Подходы", data: labels.map(l => byGroup[l]), backgroundColor: "#4f8cff" }] }, options: { plugins: { legend: { display: false }, title: { display: true, text: "Подходы по группам (30 дней)" } } } });
-  return sendPhoto(env, cq.message.chat.id, url, cap, navMenu("analytics"));
-}
-
-async function analyticsVisits(env, cq) {
-  const userId = cq.from.id;
-  const visits = await supabaseGet(env, "gym_visits?user_id=eq." + userId + "&select=visited_at&order=visited_at.desc&limit=400");
-  if (!visits.length) return editMessage(env, cq.message.chat.id, cq.message.message_id, "🗓 Посещений пока нет.", navMenu("analytics"));
-  const weeks = {};
-  const now = new Date();
-  for (let i = 7; i >= 0; i--) { const d = new Date(now); d.setDate(d.getDate() - i * 7); weeks[weekKey(d)] = 0; }
-  for (const v of visits) { const k = weekKey(new Date(v.visited_at)); if (k in weeks) weeks[k]++; }
-  const labels = Object.keys(weeks);
-  const url = chartUrl({ type: "line", data: { labels, datasets: [{ label: "Посещения/нед", data: labels.map(l => weeks[l]), borderColor: "#22c55e", backgroundColor: "rgba(34,197,94,.2)", fill: true, tension: 0.3 }] }, options: { plugins: { legend: { display: false }, title: { display: true, text: "Посещения зала по неделям" } } } });
-  return sendPhoto(env, cq.message.chat.id, url, "🗓 Посещения зала за 8 недель", navMenu("analytics"));
-}
-
-async function lastWorkoutsText(env, userId) {
-  const ses = await supabaseGet(env, "workout_sessions?user_id=eq." + userId + "&status=eq.ended&select=id,started_at,ended_at&order=ended_at.desc&limit=5");
-  if (!ses.length) return "📝 Завершённых тренировок пока нет. Начни тренировку кнопкой «Начать тренировку», чтобы засекалось время.";
-  let t = "📝 Последние тренировки\n";
-  for (const s of ses) {
-    const sets = await supabaseGet(env, "workout_sets?session_id=eq." + s.id + "&user_id=eq." + userId + "&select=exercise_name,weight,reps");
-    let ton = 0; const byEx = {};
-    for (const x of sets) { ton += Number(x.weight) * Number(x.reps); byEx[x.exercise_name] = (byEx[x.exercise_name] || 0) + 1; }
-    const mins = Math.max(1, Math.round((new Date(s.ended_at) - new Date(s.started_at)) / 60000));
-    t += "\n📅 " + fmtDate(s.started_at) + " · ⏱ " + mins + " мин · 📦 " + fmtNum(ton) + " кг";
-    for (const n in byEx) t += "\n   • " + n + " ×" + byEx[n];
-    t += "\n";
-  }
-  return t.trim();
-}
-
-async function recordsText(env, userId) {
-  const sets = await allSets(env, userId);
-  if (!sets.length) return "🏅 Рекордов пока нет — запиши первые подходы.";
-  const best = {};
-  for (const s of sets) {
-    const orm = Number(s.weight) * (1 + Number(s.reps) / 30);
-    const cur = best[s.exercise_name];
-    if (!cur || Number(s.weight) > cur.w) best[s.exercise_name] = { w: Number(s.weight), reps: Number(s.reps), orm: Math.max(orm, cur ? cur.orm : 0) };
-    else if (orm > cur.orm) cur.orm = orm;
-  }
-  let t = "🏅 Личные рекорды\n(оценка 1ПМ по формуле Эпли: вес × (1 + повт/30))\n";
-  for (const n of Object.keys(best)) t += "\n• " + n + ": " + best[n].w + " кг × " + best[n].reps + "  →  1ПМ ≈ " + Math.round(best[n].orm) + " кг";
-  return t;
-}
-
-async function energyText(env, userId) {
-  const ses = await supabaseGet(env, "workout_sessions?user_id=eq." + userId + "&status=eq.ended&energy=not.is.null&select=id,energy&order=ended_at.desc&limit=30");
-  if (!ses.length) return "⚡ Пока мало данных. Перед тренировкой отмечай энергию (1–5) — и здесь появится связь с тоннажем.";
-  let hi = [], lo = [];
-  for (const s of ses) {
-    const sets = await supabaseGet(env, "workout_sets?session_id=eq." + s.id + "&user_id=eq." + userId + "&select=weight,reps");
-    let ton = 0; for (const x of sets) ton += Number(x.weight) * Number(x.reps);
-    if (s.energy >= 4) hi.push(ton); else if (s.energy <= 2) lo.push(ton);
-  }
-  const avg = a => a.length ? Math.round(a.reduce((x, y) => x + y, 0) / a.length) : 0;
-  return "⚡ Энергия и результат\n\nСредний тоннаж тренировки:\n• при высокой энергии (4–5): " + fmtNum(avg(hi)) + " кг (" + hi.length + " трен.)\n• при низкой (1–2): " + fmtNum(avg(lo)) + " кг (" + lo.length + " трен.)\n\nОтмечай энергию на старте — выборка будет точнее.";
-}
-
-async function analyticsExport(env, cq) {
-  const userId = cq.from.id;
-  const now = Date.now();
-  const sets = (await allSets(env, userId)).filter(s => now - new Date(s.created_at).getTime() < 30 * 864e5);
-  const visits = await supabaseGet(env, "gym_visits?user_id=eq." + userId + "&select=visited_at&order=visited_at.desc&limit=400");
-  const vis30 = visits.filter(v => now - new Date(v.visited_at).getTime() < 30 * 864e5).length;
-  let ton = 0; const byGroup = {};
-  for (const s of sets) { ton += Number(s.weight) * Number(s.reps); byGroup[groupOf(s.exercise_id)] = (byGroup[groupOf(s.exercise_id)] || 0) + 1; }
-  let t = "📤 Отчёт за 30 дней\n\nПосещений: " + vis30 + "\nПодходов: " + sets.length + "\nТоннаж: " + fmtNum(ton) + " кг\n\nПодходы по группам:";
-  for (const g of Object.keys(byGroup)) t += "\n• " + g + ": " + byGroup[g];
-  t += "\n\nПоследние подходы (дата; упражнение; вес; повторы):\n";
-  for (const s of sets.slice(0, 40)) t += fmtDate(s.created_at) + "; " + s.exercise_name + "; " + s.weight + "; " + s.reps + "\n";
-  if (t.length > 3900) t = t.slice(0, 3900) + "\n…";
-  return editMessage(env, cq.message.chat.id, cq.message.message_id, t, navMenu("analytics"));
-}
-
-// ===================== ПРОФИЛЬ + БЖУ =====================
-
-async function profileText(env, from) {
-  const u = await getUser(env, from.id);
-  const sexMap = { m: "мужской", f: "женский" }, actMap = { low: "низкая", mid: "средняя", high: "высокая" };
-  let t = "👤 Профиль\n\nИмя: " + (from.first_name || "—") +
-    "\nUsername: " + (from.username ? "@" + from.username : "—") +
-    "\nID: " + from.id + "  (покажи другу, чтобы он добавил тебя)\n" +
-    "\nРост: " + (u?.height ? u.height + " см" : "—") +
-    "\nВес: " + (u?.weight ? u.weight + " кг" : "—") +
-    "\nВозраст: " + (u?.age || "—") +
-    "\nПол: " + (u?.sex ? sexMap[u.sex] : "—") +
-    "\nАктивность: " + (u?.activity ? actMap[u.activity] : "средняя") + "\n";
-  t += bjuText(u);
-  return t;
-}
-
-function bjuText(u) {
-  if (!u || !u.weight || !u.height || !u.age || !u.sex) return "\n📐 Заполни рост, вес, возраст и пол — посчитаю калории и БЖУ на похудение, поддержание и массу.";
-  const w = Number(u.weight), h = Number(u.height), a = Number(u.age);
-  const bmr = u.sex === "m" ? 10 * w + 6.25 * h - 5 * a + 5 : 10 * w + 6.25 * h - 5 * a - 161;
-  const tdee = Math.round(bmr * ({ low: 1.375, mid: 1.55, high: 1.725 }[u.activity || "mid"]));
-  const goals = [["Похудение", tdee - 600, 2.0], ["Поддержание", tdee, 1.8], ["Масса", tdee + 400, 1.8]];
-  let t = "\n🍽 Рекомендации (Mifflin-St Jeor)\nПоддержание ≈ " + tdee + " ккал/день\n";
-  for (const [name, kcal, ppk] of goals) {
-    const prot = Math.round(ppk * w), fat = Math.round(0.9 * w);
-    const carbs = Math.max(0, Math.round((kcal - prot * 4 - fat * 9) / 4));
-    t += "\n" + name + ": " + kcal + " ккал\n   Б " + prot + " · Ж " + fat + " · У " + carbs + " г";
-  }
-  return t + "\n\nПохудение — дефицит ~600 (500–700), масса — профицит ~400 (300–500).";
-}
-
-function profileMenu() {
-  return { inline_keyboard: [
-    [{ text: "✏️ Изменить данные", callback_data: "profile_edit" }],
-    [{ text: "🔒 Приватность", callback_data: "privacy" }],
-    [{ text: "Главное меню", callback_data: "menu" }]
-  ]};
-}
-
-async function handleProfInput(env, msg, field) {
-  const userId = msg.from.id, chatId = msg.chat.id;
-  const v = Number(msg.text.trim().replace(",", "."));
-  const limits = { height: [100, 250], weight: [30, 300], age: [10, 100] };
-  const [min, max] = limits[field];
-  if (!v || v < min || v > max) return sendMessage(env, chatId, "Введи число от " + min + " до " + max + ".", navMenu("profile"));
-  await supabasePatch(env, "users?id=eq." + userId, { [field]: v });
-  if (field === "height") { await setState(env, userId, "prof_weight", {}); return sendMessage(env, chatId, "Рост сохранён. Введи вес в кг (например 80).", navMenu("profile")); }
-  if (field === "weight") { await setState(env, userId, "prof_age", {}); return sendMessage(env, chatId, "Вес сохранён. Введи возраст.", navMenu("profile")); }
-  await clearState(env, userId);
-  return sendMessage(env, chatId, "Возраст сохранён. Укажи пол:", { inline_keyboard: [[{ text: "Мужской", callback_data: "prof_sex:m" }, { text: "Женский", callback_data: "prof_sex:f" }]] });
-}
-
-function activityMenu() {
-  return { inline_keyboard: [
-    [{ text: "Низкая (0–1 трен/нед)", callback_data: "prof_activity:low" }],
-    [{ text: "Средняя (3–4 трен/нед)", callback_data: "prof_activity:mid" }],
-    [{ text: "Высокая (5+ трен/нед)", callback_data: "prof_activity:high" }]
-  ]};
-}
-
-function privacyHeader() { return "🔒 Приватность\n\nЧто видят друзья. Нажми, чтобы переключить."; }
-
-async function privacyMenu(env, userId) {
-  const u = await getUser(env, userId);
-  const on = f => (u && u[f] !== false) ? "✅ вкл" : "🚫 выкл";
-  return { inline_keyboard: [
-    [{ text: "Тренировки: " + on("priv_workouts"), callback_data: "priv:workouts" }],
-    [{ text: "Аналитика: " + on("priv_analytics"), callback_data: "priv:analytics" }],
-    [{ text: "Профиль: " + on("priv_profile"), callback_data: "priv:profile" }],
-    [{ text: "Онлайн-статус: " + on("priv_online"), callback_data: "priv:online" }],
-    [{ text: "Назад", callback_data: "profile" }, { text: "Главное меню", callback_data: "menu" }]
-  ]};
-}
-
-// ===================== ВОССТАНОВЛЕНИЕ =====================
-
-function recoveryMenu() {
-  return { inline_keyboard: [
-    [{ text: "😴 Сон", callback_data: "rec_sleep" }],
-    [{ text: "🧖 Баня и сауна", callback_data: "rec_sauna" }],
-    [{ text: "Главное меню", callback_data: "menu" }]
-  ]};
-}
-
-function sleepText() {
-  return "😴 Идеальный сон\n\n" +
-"Сон — главная фаза роста. Ночью выделяется гормон роста, восстанавливаются мышцы, перезагружается нервная система. Можно идеально тренироваться и питаться, но при недосыпе прогресс встанет, а тяга к сладкому и кортизол вырастут.\n\n" +
-"Сколько спать. 7–9 часов, при активных тренировках — ближе к 8–9. Важна регулярность: ложиться и вставать в одно время, включая выходные.\n\n" +
-"За 1–2 часа до сна: приглуши свет и экраны; без кофеина после 14–15 часов; последний приём пищи за 2–3 часа без тяжёлой еды; без алкоголя — он рушит глубокие фазы.\n\n" +
-"Спальня: прохладно 18–20 °C, темно (шторы/маска), тихо (беруши/белый шум). Кровать — только для сна.\n\n" +
-"Ритуал: тёплый душ, лёгкая растяжка, дыхание 4-7-8 (вдох 4 — задержка 7 — выдох 8), бумажная книга. Не уснул за 20 минут — встань, спокойное дело при тусклом свете, вернись с сонливостью.\n\n" +
-"Утро: сразу дневной свет 5–10 минут — это запускает циркадные ритмы и помогает легче засыпать вечером.\n\n" +
-"После тяжёлой тренировки потребность во сне растёт. Мало спишь — снижай объём, иначе копится переутомление. Хороший сон восстанавливает сильнее любых добавок.";
-}
-
-function saunaText() {
-  return "🧖 Баня, сауна и хамам\n\n" +
-"Тепло ускоряет восстановление: расширяются сосуды, растёт кровоток в мышцах, быстрее уходит забитость, расслабляется тело, улучшаются сон и стрессоустойчивость. Регулярные сауны также тренируют сердечно-сосудистую систему.\n\n" +
-"Хамам (турецкая баня). Мягкий пар, 40–50 °C, влажность под 100%. Самый щадящий формат — можно после каждой тренировки, включая силовую. Влажное тепло мягко прогревает мышцы, снимает забитость и не перегружает сердце. После тренировки достаточно 10–15 минут.\n\n" +
-"Сауна (финская). Сухой жар 80–100 °C, нагружает сердце сильнее. Сразу после тяжёлой силовой лучше не злоупотреблять. Оптимально 2–3 захода по 8–12 минут с остыванием между ними.\n\n" +
-"Сколько раз в неделю. Оптимально 2–4 сессии сауны в неделю — именно такая регулярность в исследованиях связана с лучшим восстановлением и здоровьем сердца. Хамам мягче, его можно и чаще, хоть после каждой тренировки. Главное — самочувствие и достаточно воды.\n\n" +
-"Польза сразу после тренировки. Тепло усиливает приток крови к мышцам и помогает быстрее вывести продукты обмена, снижает мышечное напряжение и ощущение забитости, расслабляет нервную систему и помогает крепче уснуть вечером, а лёгкое потоотделение и контраст бодрят. После тяжёлой силовой выбирай мягкий формат (хамам или короткие заходы), после лёгкой или кардио можно чуть дольше.\n\n" +
-"Контраст. После захода — прохладный душ или бассейн на 10–30 секунд. Тренирует сосуды и усиливает восстановление. Начинай мягко, без ледяной воды и резкого ныряния с разгорячённым сердцем.\n\n" +
-"Душ и гигиена. Перед баней — тёплый душ, смыть пот и косметику. После каждого захода ополаскивайся, в конце — тёплый душ и хорошо высушись.\n\n" +
-"Вода и безопасность. Пей воду или травяной чай до, между заходами и после (без алкоголя). Не парься натощак и сразу после плотной еды. Выходи при головокружении или сильном сердцебиении. Противопоказания: высокое давление, болезни сердца, острые воспаления, беременность — только после консультации с врачом.\n\n" +
-"Итог: хамам — мягко и можно после каждой тренировки; сауну дозируй 2–4 раза в неделю короткими заходами.";
-}
-
-// ===================== ДРУЗЬЯ =====================
-
-function friendsMenu() {
-  return { inline_keyboard: [
-    [{ text: "➕ Добавить по ID", callback_data: "friend_add" }],
-    [{ text: "👤 Список друзей", callback_data: "friend_list" }],
-    [{ text: "📨 Заявки", callback_data: "friend_requests" }],
-    [{ text: "🤝 Совместная тренировка", callback_data: "joint" }],
-    [{ text: "✉️ Сообщение друзьям", callback_data: "friend_msg" }],
-    [{ text: "🏆 Рейтинг", callback_data: "leaderboard" }],
-    [{ text: "🔒 Приватность", callback_data: "privacy" }],
-    [{ text: "Главное меню", callback_data: "menu" }]
-  ]};
-}
-
-async function handleFriendAdd(env, msg) {
-  const fid = Number(msg.text.trim());
-  const me = msg.from.id;
-  if (!fid || fid === me) return sendMessage(env, msg.chat.id, "Нужен числовой ID друга (не твой собственный).", navMenu("friends"));
-  await supabaseInsert(env, "friends", { user_id: me, friend_id: fid, status: "pending", can_view_workouts: false });
-  await clearState(env, me);
-  const target = await getUser(env, fid);
-  if (target) {
-    await sendMessage(env, fid, "📨 Заявка в друзья от " + (msg.from.first_name || ("ID " + me)) + ".", { inline_keyboard: [[{ text: "Принять", callback_data: "frq_ac:" + me }, { text: "Отклонить", callback_data: "frq_de:" + me }]] });
-    return sendMessage(env, msg.chat.id, "Заявка отправлена — другу пришло уведомление.", navMenu("friends"));
-  }
-  return sendMessage(env, msg.chat.id, "Заявка создана. Но этот пользователь ещё не запускал бота — уведомление придёт, когда он откроет бота.", navMenu("friends"));
-}
-
-async function acceptFriend(env, cq, fromId) {
-  const me = cq.from.id;
-  await supabasePatch(env, "friends?user_id=eq." + fromId + "&friend_id=eq." + me, { status: "accepted" });
-  await supabaseInsert(env, "friends", { user_id: me, friend_id: fromId, status: "accepted", can_view_workouts: true });
-  await sendMessage(env, fromId, "✅ " + (cq.from.first_name || ("ID " + me)) + " принял заявку в друзья!");
-  return editMessage(env, cq.message.chat.id, cq.message.message_id, "Готово — теперь вы друзья.", await friendRequestsMenu(env, me));
-}
-
-async function declineFriend(env, cq, fromId) {
-  const me = cq.from.id;
-  await supabaseDelete(env, "friends?user_id=eq." + fromId + "&friend_id=eq." + me);
-  return editMessage(env, cq.message.chat.id, cq.message.message_id, "Заявка отклонена.", await friendRequestsMenu(env, me));
-}
-
-async function removeFriend(env, me, fid) {
-  await supabaseDelete(env, "friends?user_id=eq." + me + "&friend_id=eq." + fid);
-  await supabaseDelete(env, "friends?user_id=eq." + fid + "&friend_id=eq." + me);
-}
-
-async function acceptedFriends(env, userId) {
-  const rows = await supabaseGet(env, "friends?user_id=eq." + userId + "&status=eq.accepted&select=friend_id");
-  return rows.map(r => r.friend_id);
-}
-
-async function friendListText(env, userId) {
-  const ids = await acceptedFriends(env, userId);
-  if (!ids.length) return "👤 Друзей пока нет. Добавь по ID.";
-  let t = "👤 Друзья:\n";
-  for (const fid of ids) { const u = await getUser(env, fid); t += "\n• " + (u?.first_name || ("ID " + fid)) + (u?.username ? " (@" + u.username + ")" : ""); }
-  return t;
-}
-
-async function friendListMenu(env, userId) {
-  const ids = await acceptedFriends(env, userId);
-  const rows = [];
-  for (const fid of ids) { const u = await getUser(env, fid); rows.push([{ text: "👁 " + (u?.first_name || fid), callback_data: "fview:" + fid }, { text: "❌", callback_data: "fdel:" + fid }]); }
-  rows.push([{ text: "Назад", callback_data: "friends" }, { text: "Главное меню", callback_data: "menu" }]);
-  return { inline_keyboard: rows };
-}
-
-async function friendRequestsMenu(env, userId) {
-  const rows = await supabaseGet(env, "friends?friend_id=eq." + userId + "&status=eq.pending&select=user_id");
-  const kb = [];
-  for (const r of rows) { const u = await getUser(env, r.user_id); kb.push([{ text: "✅ " + (u?.first_name || r.user_id), callback_data: "frq_ac:" + r.user_id }, { text: "❌", callback_data: "frq_de:" + r.user_id }]); }
-  if (!kb.length) kb.push([{ text: "Заявок нет", callback_data: "friends" }]);
-  kb.push([{ text: "Назад", callback_data: "friends" }, { text: "Главное меню", callback_data: "menu" }]);
-  return { inline_keyboard: kb };
-}
-
-async function friendViewText(env, me, fid) {
-  const ids = await acceptedFriends(env, me);
-  if (!ids.includes(fid)) return "Это не твой друг.";
-  const u = await getUser(env, fid);
-  let t = "👁 " + (u?.first_name || ("ID " + fid)) + "\n";
-  if (u && u.priv_profile !== false) {
-    const sexMap = { m: "муж.", f: "жен." };
-    t += "\nРост: " + (u.height ? u.height + " см" : "—") + " · Вес: " + (u.weight ? u.weight + " кг" : "—") + (u.sex ? " · " + sexMap[u.sex] : "");
-  } else t += "\nПрофиль скрыт настройками приватности.";
-  if (u && u.priv_analytics !== false) {
-    const sets = await allSets(env, fid);
-    let ton = 0; for (const s of sets) ton += Number(s.weight) * Number(s.reps);
-    const visits = await supabaseGet(env, "gym_visits?user_id=eq." + fid + "&select=visited_at&order=visited_at.desc&limit=2000");
-    t += "\n\n📊 Посещений: " + visits.length + " · Тоннаж: " + fmtNum(ton) + " кг · 🔥 " + computeStreak(visits.map(v => v.visited_at)) + " дн.";
-  } else t += "\n\nАналитика скрыта настройками приватности.";
-  if (u && u.priv_workouts !== false) {
-    const last = await supabaseGet(env, "workout_sets?user_id=eq." + fid + "&select=exercise_name,weight,reps,created_at&order=created_at.desc&limit=6");
-    if (last.length) { t += "\n\nПоследнее:"; last.forEach(s => t += "\n• " + s.exercise_name + " " + s.weight + "x" + s.reps); }
-  } else t += "\n\nТренировки скрыты настройками приватности.";
-  return t;
-}
-
-function broadcastMenu() {
-  const rows = MOTIVATION.map((m, i) => [{ text: m, callback_data: "bcast:" + i }]);
-  rows.push([{ text: "✍️ Свой текст", callback_data: "bcast_custom" }]);
-  rows.push([{ text: "Назад", callback_data: "friends" }, { text: "Главное меню", callback_data: "menu" }]);
-  return { inline_keyboard: rows };
-}
-
-async function sendTemplate(env, cq, idx) {
-  return doBroadcast(env, cq.from, MOTIVATION[idx] || MOTIVATION[0], cq.message.chat.id, cq.message.message_id);
-}
-
-async function handleBroadcast(env, msg) {
-  await clearState(env, msg.from.id);
-  return doBroadcast(env, msg.from, msg.text.trim(), msg.chat.id);
-}
-
-async function doBroadcast(env, from, text, chatId, msgId) {
-  const ids = await acceptedFriends(env, from.id);
-  let sent = 0;
-  for (const fid of ids) { await sendMessage(env, fid, "✉️ От " + (from.first_name || ("ID " + from.id)) + ":\n\n" + text); sent++; }
-  const res = sent ? ("Отправлено друзьям: " + sent + " 💪") : "У тебя пока нет друзей для рассылки.";
-  if (msgId) return editMessage(env, chatId, msgId, res, navMenu("friends"));
-  return sendMessage(env, chatId, res, navMenu("friends"));
-}
-
-async function jointPickMenu(env, userId) {
-  const ids = await acceptedFriends(env, userId);
-  const rows = [];
-  for (const fid of ids) { const u = await getUser(env, fid); rows.push([{ text: u?.first_name || ("ID " + fid), callback_data: "jinv:" + fid }]); }
-  if (!rows.length) rows.push([{ text: "Нет друзей — добавь сначала", callback_data: "friends" }]);
-  rows.push([{ text: "Назад", callback_data: "friends" }, { text: "Главное меню", callback_data: "menu" }]);
-  return { inline_keyboard: rows };
-}
-
-async function jointInvite(env, cq, fid) {
-  const me = cq.from.id;
-  const target = await getUser(env, fid);
-  if (!target) return editMessage(env, cq.message.chat.id, cq.message.message_id, "Друг ещё не запускал бота.", navMenu("friends"));
-  await sendMessage(env, fid, "🤝 " + (cq.from.first_name || ("ID " + me)) + " зовёт на совместную тренировку!", { inline_keyboard: [[{ text: "Присоединиться", callback_data: "jac:" + me }, { text: "Отклонить", callback_data: "jde:" + me }]] });
-  return editMessage(env, cq.message.chat.id, cq.message.message_id, "Приглашение отправлено. Жди, пока друг присоединится.", navMenu("friends"));
-}
-
-async function jointAccept(env, cq, hostId) {
-  const me = cq.from.id;
-  await supabaseInsert(env, "workout_sessions", { user_id: hostId, partner_id: me, kind: "joint", status: "active" });
-  await ensureVisitOncePer3Hours(env, cq.from);
-  await sendMessage(env, hostId, "✅ " + (cq.from.first_name || ("ID " + me)) + " присоединился! Выбирай упражнение — оно подтянется у партнёра.", trainingsMenu());
-  return editMessage(env, cq.message.chat.id, cq.message.message_id, "🤝 Совместная тренировка началась! Выбирай упражнение — оно подтянется у партнёра. Записывай свои подходы.", trainingsMenu());
-}
-
-async function jointDecline(env, cq, hostId) {
-  await sendMessage(env, hostId, "❌ " + (cq.from.first_name || "Друг") + " отклонил совместную тренировку.");
-  return editMessage(env, cq.message.chat.id, cq.message.message_id, "Отклонено.", navMenu("friends"));
-}
-
-async function syncJointExercise(env, userId, exId) {
-  const s = await activeSession(env, userId);
-  if (!s || s.kind !== "joint") return;
-  if (s.current_exercise_id === exId) return;
-  await supabasePatch(env, "workout_sessions?id=eq." + s.id, { current_exercise_id: exId });
-  const partner = s.user_id === userId ? s.partner_id : s.user_id;
-  if (partner && EX[exId]) await sendMessage(env, partner, "🤝 Партнёр перешёл к: " + EX[exId][0], { inline_keyboard: [[{ text: "Записать свой подход", callback_data: "ex:" + exId }]] });
-}
-
-// ===================== РЕЙТИНГ =====================
-
-function leaderboardMenu() {
-  return { inline_keyboard: [
-    [{ text: "По тоннажу", callback_data: "lb:tonnage" }],
-    [{ text: "По посещениям", callback_data: "lb:visits" }],
-    [{ text: "По серии (streak)", callback_data: "lb:streak" }],
-    [{ text: "Назад", callback_data: "friends" }, { text: "Главное меню", callback_data: "menu" }]
-  ]};
-}
-
-async function leaderboard(env, cq, metric) {
-  const me = cq.from.id;
-  const ids = [me, ...(await acceptedFriends(env, me))];
-  const now = Date.now();
-  const res = [];
-  for (const id of ids) {
-    const u = await getUser(env, id);
-    let val = 0;
-    if (metric === "visits" || metric === "streak") {
-      const visits = await supabaseGet(env, "gym_visits?user_id=eq." + id + "&select=visited_at&order=visited_at.desc&limit=2000");
-      if (metric === "visits") val = visits.filter(v => now - new Date(v.visited_at).getTime() < 7 * 864e5).length;
-      else val = computeStreak(visits.map(v => v.visited_at));
-    } else {
-      const sets = await supabaseGet(env, "workout_sets?user_id=eq." + id + "&select=weight,reps,created_at&order=created_at.desc&limit=2000");
-      for (const s of sets) if (now - new Date(s.created_at).getTime() < 7 * 864e5) val += Number(s.weight) * Number(s.reps);
-    }
-    res.push({ name: (id === me ? "Ты" : (u?.first_name || ("ID " + id))), val });
-  }
-  res.sort((a, b) => b.val - a.val);
-  const unit = metric === "tonnage" ? " кг" : (metric === "streak" ? " дн." : "");
-  const title = metric === "tonnage" ? "тоннаж за 7 дней" : (metric === "visits" ? "посещения за 7 дней" : "серия подряд");
-  let t = "🏆 Рейтинг — " + title + "\n";
-  const medals = ["🥇", "🥈", "🥉"];
-  res.forEach((r, i) => t += "\n" + (medals[i] || (i + 1) + ".") + " " + r.name + " — " + fmtNum(r.val) + unit);
-  return editMessage(env, cq.message.chat.id, cq.message.message_id, t, leaderboardMenu());
-}
-
-// ===================== ЧЕЛЛЕНДЖИ =====================
-
-const CH_TEMPLATES = [
-  { title: "5 тренировок за неделю", ctype: "workouts", goal: 5, period: "week" },
-  { title: "20 тренировок за месяц", ctype: "workouts", goal: 20, period: "month" },
-  { title: "10 000 кг за неделю", ctype: "tonnage", goal: 10000, period: "week" },
-  { title: "50 000 кг за месяц", ctype: "tonnage", goal: 50000, period: "month" }
-];
-
-function periodEnd(period) {
-  const d = new Date();
-  d.setDate(d.getDate() + (period === "week" ? 7 : 30));
-  return d.toISOString();
-}
-
-async function challengesText(env, userId) {
-  const mine = await supabaseGet(env, "challenge_members?user_id=eq." + userId + "&select=challenge_id");
-  let t = "🏆 Челленджи\n";
-  if (!mine.length) t += "\nТы пока не участвуешь. Создай свой или присоединись к челленджу друга.";
-  else t += "\nТвои челленджи и челленджи друзей — ниже.";
-  return t;
-}
-
-async function challengesMenu(env, userId) {
-  const rows = [];
-  const mine = await supabaseGet(env, "challenge_members?user_id=eq." + userId + "&select=challenge_id");
-  const myIds = mine.map(m => m.challenge_id);
-  for (const cid of myIds) { const c = (await supabaseGet(env, "challenges?id=eq." + cid + "&select=id,title&limit=1"))[0]; if (c) rows.push([{ text: "📊 " + c.title, callback_data: "ch_view:" + c.id }, { text: "Выйти", callback_data: "ch_leave:" + c.id }]); }
-  const friends = await acceptedFriends(env, userId);
-  for (const fid of friends) {
-    const owned = await supabaseGet(env, "challenges?owner_id=eq." + fid + "&select=id,title&order=id.desc&limit=5");
-    for (const c of owned) if (!myIds.includes(c.id)) rows.push([{ text: "➕ " + c.title + " (друг)", callback_data: "ch_join:" + c.id }]);
-  }
-  rows.push([{ text: "🎯 Новый челлендж", callback_data: "ch_new" }]);
-  rows.push([{ text: "Главное меню", callback_data: "menu" }]);
-  return { inline_keyboard: rows };
-}
-
-function challengeTemplatesMenu() {
-  const rows = CH_TEMPLATES.map((c, i) => [{ text: c.title, callback_data: "chtpl:" + i }]);
-  rows.push([{ text: "🛠 Свой челлендж", callback_data: "ch_custom" }]);
-  rows.push([{ text: "Назад", callback_data: "challenges" }]);
-  return { inline_keyboard: rows };
-}
-
-async function createChallenge(env, userId, title, ctype, goal, period) {
-  await supabaseInsert(env, "challenges", { owner_id: userId, title, ctype, goal, period, ends_at: periodEnd(period) });
-  const row = (await supabaseGet(env, "challenges?owner_id=eq." + userId + "&select=id&order=id.desc&limit=1"))[0];
-  if (row) await supabaseInsert(env, "challenge_members", { challenge_id: row.id, user_id: userId });
-  return row ? row.id : null;
-}
-
-async function createChallengeTemplate(env, cq, idx) {
-  const c = CH_TEMPLATES[idx];
-  await createChallenge(env, cq.from.id, c.title, c.ctype, c.goal, c.period);
-  return editMessage(env, cq.message.chat.id, cq.message.message_id, "✅ Челлендж создан: " + c.title + "\n\nДрузья увидят его в своём разделе Челленджи и смогут присоединиться.", navMenu("challenges"));
-}
-
-function goalMenu(t, per) {
-  const opts = t === "workouts" ? [3, 5, 8, 12, 20] : [5000, 10000, 25000, 50000];
-  const rows = [opts.map(g => ({ text: String(g), callback_data: "chmk:" + t + ":" + per + ":" + g }))];
-  rows.push([{ text: "Назад", callback_data: "chc:" + t }]);
-  return { inline_keyboard: rows };
-}
-
-async function createChallengeCustom(env, cq, data) {
-  const [, t, per, goal] = data.split(":");
-  const title = (t === "workouts" ? goal + " трен." : fmtNum(Number(goal)) + " кг") + " за " + (per === "week" ? "неделю" : "месяц");
-  await createChallenge(env, cq.from.id, title, t, Number(goal), per);
-  return editMessage(env, cq.message.chat.id, cq.message.message_id, "✅ Челлендж создан: " + title, navMenu("challenges"));
-}
-
-async function joinChallenge(env, cq, id) {
-  await supabaseInsert(env, "challenge_members", { challenge_id: id, user_id: cq.from.id });
-  return editMessage(env, cq.message.chat.id, cq.message.message_id, "✅ Ты присоединился к челленджу!", navMenu("challenges"));
-}
-
-async function challengeProgress(env, c, userId) {
-  const start = new Date(c.starts_at || Date.now()).getTime();
-  if (c.ctype === "workouts") {
-    const v = await supabaseGet(env, "gym_visits?user_id=eq." + userId + "&select=visited_at&limit=2000");
-    return v.filter(x => new Date(x.visited_at).getTime() >= start).length;
-  }
-  const sets = await supabaseGet(env, "workout_sets?user_id=eq." + userId + "&select=weight,reps,created_at&limit=2000");
-  let ton = 0; for (const s of sets) if (new Date(s.created_at).getTime() >= start) ton += Number(s.weight) * Number(s.reps);
-  return ton;
-}
-
-async function challengeViewText(env, id) {
-  const c = (await supabaseGet(env, "challenges?id=eq." + id + "&select=*&limit=1"))[0];
-  if (!c) return "Челлендж не найден.";
-  const members = await supabaseGet(env, "challenge_members?challenge_id=eq." + id + "&select=user_id");
-  let t = "📊 " + c.title + "\nЦель: " + fmtNum(c.goal) + (c.ctype === "tonnage" ? " кг" : " трен.") + "\n";
-  const arr = [];
-  for (const m of members) { const u = await getUser(env, m.user_id); const val = await challengeProgress(env, c, m.user_id); arr.push({ name: u?.first_name || ("ID " + m.user_id), val }); }
-  arr.sort((a, b) => b.val - a.val);
-  for (const a of arr) { const pct = Math.min(100, Math.round(a.val / c.goal * 100)); const f = Math.round(pct / 10); t += "\n" + a.name + ": " + fmtNum(a.val) + " (" + pct + "%)\n" + "▰".repeat(f) + "▱".repeat(10 - f); }
-  return t;
-}
-
-// ===================== ПИТАНИЕ =====================
-
-function foodMenu() {
-  return { inline_keyboard: [
-    [{ text: "🥗 Рецепты", callback_data: "food_recipes" }],
-    [{ text: "📖 Принципы питания", callback_data: "food_principles" }],
-    [{ text: "💧 Вода", callback_data: "water" }],
-    [{ text: "💊 БАДы", callback_data: "supps" }],
-    [{ text: "Главное меню", callback_data: "menu" }]
-  ]};
-}
-
-function nutritionText() {
-  return "📖 Принципы питания\n\n" +
-"Главное — баланс калорий. Худеешь — ешь меньше, чем тратишь; набираешь — больше. Точные цифры под твой вес и цель бот считает в Профиле.\n\n" +
-"Белок — фундамент: 1.8–2.2 г/кг, на похудении ближе к верхней границе. Источники: курица, индейка, рыба, яйца, творог, греческий йогурт, бобовые.\n\n" +
-"Жиры — не враг: 0.8–1 г/кг. Нужны для гормонов. Оливковое масло, орехи, авокадо, жирная рыба, яйца. Избегай трансжиров.\n\n" +
-"Углеводы — топливо: остаток калорий, упор на сложные (крупы, цельнозерновой хлеб, овощи). Быстрые удобны вокруг тренировки.\n\n" +
-"Овощи и клетчатка — минимум 400 г овощей в день. Вода — 30–40 мл/кг (следи в разделе 💧 Вода).\n\n" +
-"Режим: 3–5 приёмов как удобно. Важна сумма за день и за неделю, а не идеальность каждого приёма.";
-}
-
-function recipesMenu() {
-  return { inline_keyboard: [
-    [{ text: "🍳 Завтраки", callback_data: "recipe:breakfast" }],
-    [{ text: "🍲 Обеды", callback_data: "recipe:lunch" }],
-    [{ text: "🍽 Ужины", callback_data: "recipe:dinner" }],
-    [{ text: "🍎 Перекусы", callback_data: "recipe:snack" }],
-    [{ text: "Назад", callback_data: "food_supps" }, { text: "Главное меню", callback_data: "menu" }]
-  ]};
-}
-
-function recipeText(cat) {
-  const R = {
-    breakfast: "🍳 Завтраки\n\n1) Омлет с овощами\n3 яйца, шпинат, помидор, 30 г сыра. ~350 ккал, Б 25 · Ж 24 · У 6.\n\n2) Овсянка с творогом\n60 г овсянки, 100 г творога, ягоды, мёд. ~400 ккал, Б 28 · Ж 8 · У 55.\n\n3) Скрэмбл с тостом\n3 яйца, цельнозерновой тост, авокадо. ~420 ккал, Б 22 · Ж 26 · У 24.",
-    lunch: "🍲 Обеды\n\n1) Курица с рисом\n150 г грудки, 60 г риса (сухой), овощи на пару. ~480 ккал, Б 45 · Ж 8 · У 55.\n\n2) Говядина с гречкой\n130 г говядины, 60 г гречки, салат. ~500 ккал, Б 42 · Ж 14 · У 50.\n\n3) Лосось с картофелем\n150 г лосося, 200 г запечённого картофеля. ~550 ккал, Б 35 · Ж 28 · У 40.",
-    dinner: "🍽 Ужины\n\n1) Творог с овощами\n200 г творога, огурец, зелень, ложка йогурта. ~280 ккал, Б 36 · Ж 8 · У 12.\n\n2) Рыба с салатом\n180 г белой рыбы, овощной салат с оливковым маслом. ~330 ккал, Б 38 · Ж 14 · У 8.\n\n3) Индейка с овощами\n150 г индейки, кабачок, перец, морковь. ~340 ккал, Б 40 · Ж 10 · У 18.",
-    snack: "🍎 Перекусы\n\n1) Йогурт с орехами — 150 г + 20 г. ~250 ккал, Б 16 · Ж 14 · У 12.\n\n2) Протеин с бананом. ~280 ккал, Б 28 · Ж 4 · У 35.\n\n3) Яблоко с арахисовой пастой. ~200 ккал, Б 6 · Ж 9 · У 28.\n\n4) Творог с мёдом — 150 г. ~190 ккал, Б 26 · Ж 3 · У 16."
-  };
-  return R[cat] || "Раздел не найден.";
-}
-
-function suppsText() {
-  return "💊 БАДы\n\nДобавки дополняют питание, а не заменяют. Сначала режим, белок и сон.\n\n" +
-"Рабочее:\n• Креатин моногидрат — 3–5 г/день постоянно, в любое время. Сила и объём, загрузка не нужна.\n• Протеин — удобно добрать норму белка.\n• Омега-3 — 1–2 г EPA+DHA, если мало жирной рыбы.\n• Витамин D — 1000–2000 МЕ, лучше по анализу.\n• Магний — при судорогах, стрессе, плохом сне, вечером.\n\n" +
-"По желанию: кофеин 100–200 мг до тренировки (не на ночь), комплекс витаминов при бедном рационе.\n\n" +
-"Не нужно: «жиросжигатели» обычно не работают — жир сжигает дефицит калорий.\n\nПри болезнях и лекарствах согласуй с врачом.";
-}
-
-function todayStr() { return new Date().toISOString().slice(0, 10); }
-
-async function waterText(env, userId) {
-  const u = await getUser(env, userId);
-  const goal = u?.water_goal_ml || 2500;
-  const rows = await supabaseGet(env, "water_log?user_id=eq." + userId + "&day=eq." + todayStr() + "&select=ml&limit=1");
-  const ml = rows[0] ? rows[0].ml : 0;
-  const pct = Math.min(100, Math.round(ml / goal * 100));
-  const f = Math.round(pct / 10);
-  return "💧 Вода сегодня\n\n" + "▰".repeat(f) + "▱".repeat(10 - f) + "  " + pct + "%\n" + ml + " / " + goal + " мл";
-}
-
-function waterMenu() {
-  return { inline_keyboard: [
-    [{ text: "+250 мл", callback_data: "water_add:250" }, { text: "+500 мл", callback_data: "water_add:500" }],
-    [{ text: "✏️ Своё", callback_data: "water_custom" }, { text: "🎯 Цель", callback_data: "water_goal" }],
-    [{ text: "Назад", callback_data: "food_supps" }, { text: "Главное меню", callback_data: "menu" }]
-  ]};
-}
-
-async function addWater(env, userId, ml) {
-  if (!ml || ml < 0) return;
-  const rows = await supabaseGet(env, "water_log?user_id=eq." + userId + "&day=eq." + todayStr() + "&select=ml&limit=1");
-  const total = (rows[0] ? rows[0].ml : 0) + ml;
-  await fetch(env.SUPABASE_URL + "/rest/v1/water_log?on_conflict=user_id,day", {
-    method: "POST", headers: supabaseHeaders(env, "resolution=merge-duplicates"),
-    body: JSON.stringify({ user_id: userId, day: todayStr(), ml: total })
-  });
-}
-
-async function handleWaterCustom(env, msg) {
-  const ml = Number(msg.text.trim());
-  if (!ml || ml <= 0 || ml > 5000) return sendMessage(env, msg.chat.id, "Введи число от 1 до 5000.", navMenu("water"));
-  await addWater(env, msg.from.id, ml); await clearState(env, msg.from.id);
-  return sendMessage(env, msg.chat.id, await waterText(env, msg.from.id), waterMenu());
-}
-
-async function handleWaterGoal(env, msg) {
-  const ml = Number(msg.text.trim());
-  if (!ml || ml < 500 || ml > 8000) return sendMessage(env, msg.chat.id, "Введи цель от 500 до 8000 мл.", navMenu("water"));
-  await supabasePatch(env, "users?id=eq." + msg.from.id, { water_goal_ml: ml }); await clearState(env, msg.from.id);
-  return sendMessage(env, msg.chat.id, "🎯 Цель обновлена.\n\n" + (await waterText(env, msg.from.id)), waterMenu());
-}
-
-// ===================== ИЗБРАННОЕ =====================
-
-async function isFav(env, userId, exId) {
-  const r = await supabaseGet(env, "favorite_exercises?user_id=eq." + userId + "&exercise_id=eq." + exId + "&select=exercise_id&limit=1");
-  return r.length > 0;
-}
-
-async function toggleFav(env, userId, exId) {
-  if (await isFav(env, userId, exId)) await supabaseDelete(env, "favorite_exercises?user_id=eq." + userId + "&exercise_id=eq." + exId);
-  else await supabaseInsert(env, "favorite_exercises", { user_id: userId, exercise_id: exId });
-}
-
-async function favListText(env, userId) {
-  const r = await supabaseGet(env, "favorite_exercises?user_id=eq." + userId + "&select=exercise_id");
-  if (!r.length) return "⭐ Избранных упражнений нет. Открой упражнение и нажми «В избранное».";
-  return "⭐ Избранные упражнения:";
-}
-
-async function favListMenu(env, userId) {
-  const r = await supabaseGet(env, "favorite_exercises?user_id=eq." + userId + "&select=exercise_id");
-  const rows = r.filter(x => EX[x.exercise_id]).map(x => [{ text: EX[x.exercise_id][0], callback_data: "ex:" + x.exercise_id }]);
-  rows.push([{ text: "Назад", callback_data: "trainings" }, { text: "Главное меню", callback_data: "menu" }]);
-  return { inline_keyboard: rows };
-}
-
-// ===================== «ДАВНО НЕ КАЧАЛ» =====================
-
-async function staleGroup(env, userId) {
-  const sets = await supabaseGet(env, "workout_sets?user_id=eq." + userId + "&select=exercise_id,created_at&order=created_at.desc&limit=500");
-  if (sets.length < 5) return null;
-  const trained = new Set(sets.map(s => groupOf(s.exercise_id)));
-  const last = {};
-  for (const s of sets) { const g = groupOf(s.exercise_id); if (!last[g]) last[g] = new Date(s.created_at).getTime(); }
-  let worst = null;
-  for (const g of trained) {
-    const days = Math.floor((Date.now() - last[g]) / 864e5);
-    if (days >= 10 && (!worst || days > worst.days)) worst = { group: g, days };
-  }
-  return worst;
-}
-
-// ===================== ОБЩЕЕ =====================
-
-function fmtDate(s) { return new Date(s).toLocaleDateString("ru-RU"); }
-function fmtNum(n) { return Math.round(n).toLocaleString("ru-RU"); }
-function weekKey(d) { const x = new Date(d); const day = (x.getDay() + 6) % 7; x.setDate(x.getDate() - day); return (x.getMonth() + 1) + "/" + x.getDate(); }
-
-function computeStreak(dates) {
-  if (!dates.length) return 0;
-  const set = new Set(dates.map(d => new Date(d).toISOString().slice(0, 10)));
-  let streak = 0; const cur = new Date();
-  if (!set.has(cur.toISOString().slice(0, 10))) cur.setDate(cur.getDate() - 1);
-  while (set.has(cur.toISOString().slice(0, 10))) { streak++; cur.setDate(cur.getDate() - 1); }
-  return streak;
-}
-
-function chartUrl(config) {
-  return "https://quickchart.io/chart?bkg=white&w=640&h=380&c=" + encodeURIComponent(JSON.stringify(config));
-}
-
-function navMenu(back) { return { inline_keyboard: [[{ text: "Назад", callback_data: back }, { text: "Главное меню", callback_data: "menu" }]] }; }
-
-async function ensureVisitOncePer3Hours(env, from) {
-  await ensureUser(env, from);
-  const last = await supabaseGet(env, "gym_visits?user_id=eq." + from.id + "&select=visited_at&order=visited_at.desc&limit=1");
-  if (last.length) { const diff = (Date.now() - new Date(last[0].visited_at).getTime()) / 3.6e6; if (diff < VISIT_COOLDOWN_HOURS) return; }
-  await supabaseInsert(env, "gym_visits", { user_id: from.id });
-}
-
-async function ensureUser(env, from) {
-  if (!from) return;
-  await fetch(env.SUPABASE_URL + "/rest/v1/users?on_conflict=id", {
-    method: "POST", headers: supabaseHeaders(env, "resolution=merge-duplicates"),
-    body: JSON.stringify({ id: from.id, username: from.username || null, first_name: from.first_name || null, last_name: from.last_name || null, last_seen: new Date().toISOString() })
-  });
-}
-
-async function getUser(env, userId) { const r = await supabaseGet(env, "users?id=eq." + userId + "&select=*&limit=1"); return r[0] || null; }
-async function saveProgram(env, userId, name, source, data) { await supabaseInsert(env, "custom_programs", { user_id: userId, name, source, data }); }
-async function getNote(env, userId, exId) { const r = await supabaseGet(env, "exercise_notes?user_id=eq." + userId + "&exercise_id=eq." + exId + "&select=note&limit=1"); return r[0] ? r[0].note : null; }
-async function saveNote(env, userId, exId, note) {
-  await fetch(env.SUPABASE_URL + "/rest/v1/exercise_notes?on_conflict=user_id,exercise_id", {
-    method: "POST", headers: supabaseHeaders(env, "resolution=merge-duplicates"),
-    body: JSON.stringify({ user_id: userId, exercise_id: exId, note, updated_at: new Date().toISOString() })
-  });
-}
-
-async function getState(env, userId) { const r = await supabaseGet(env, "user_state?user_id=eq." + userId + "&select=state,data&limit=1"); return r[0] || null; }
-async function setState(env, userId, state, data) {
-  await fetch(env.SUPABASE_URL + "/rest/v1/user_state?on_conflict=user_id", {
-    method: "POST", headers: supabaseHeaders(env, "resolution=merge-duplicates"),
-    body: JSON.stringify({ user_id: userId, state, data, updated_at: new Date().toISOString() })
-  });
-}
-async function clearState(env, userId) { await supabaseDelete(env, "user_state?user_id=eq." + userId); }
-
-async function supabaseGet(env, path) {
-  const res = await fetch(env.SUPABASE_URL + "/rest/v1/" + path, { method: "GET", headers: supabaseHeaders(env) });
-  if (!res.ok) return [];
-  return await res.json();
-}
-async function supabaseInsert(env, table, body) {
-  return fetch(env.SUPABASE_URL + "/rest/v1/" + table, { method: "POST", headers: supabaseHeaders(env, "return=minimal"), body: JSON.stringify(body) });
-}
-async function supabasePatch(env, path, body) {
-  return fetch(env.SUPABASE_URL + "/rest/v1/" + path, { method: "PATCH", headers: supabaseHeaders(env, "return=minimal"), body: JSON.stringify(body) });
-}
-async function supabaseDelete(env, path) {
-  return fetch(env.SUPABASE_URL + "/rest/v1/" + path, { method: "DELETE", headers: supabaseHeaders(env) });
-}
-function supabaseHeaders(env, prefer) {
-  const h = { apikey: env.SUPABASE_KEY, Authorization: "Bearer " + env.SUPABASE_KEY, "Content-Type": "application/json" };
-  if (prefer) h.Prefer = prefer;
-  return h;
-}
-
-async function sendMessage(env, chatId, text, keyboard) {
-  const payload = { chat_id: chatId, text };
-  if (keyboard) payload.reply_markup = keyboard;
-  await fetch("https://api.telegram.org/bot" + env.BOT_TOKEN + "/sendMessage", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
-}
-async function sendPhoto(env, chatId, url, caption, keyboard) {
-  const payload = { chat_id: chatId, photo: url };
-  if (caption) payload.caption = caption.slice(0, 1000);
-  if (keyboard) payload.reply_markup = keyboard;
-  await fetch("https://api.telegram.org/bot" + env.BOT_TOKEN + "/sendPhoto", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
-}
-async function editMessage(env, chatId, msgId, text, keyboard) {
-  const payload = { chat_id: chatId, message_id: msgId, text };
-  if (keyboard) payload.reply_markup = keyboard;
-  await fetch("https://api.telegram.org/bot" + env.BOT_TOKEN + "/editMessageText", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
-}
-async function answerCallback(env, callbackId) {
-  await fetch("https://api.telegram.org/bot" + env.BOT_TOKEN + "/answerCallbackQuery", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ callback_query_id: callbackId }) });
 }
