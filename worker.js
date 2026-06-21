@@ -1,4 +1,4 @@
-/* ЭЛЕКТРИЧЕСКИЙ МОЗГ — Telegram-бот (Cloudflare Worker)
+ /* ЭЛЕКТРИЧЕСКИЙ МОЗГ — Telegram-бот (Cloudflare Worker)
    Стек: Telegram Bot API + Supabase (REST) + Cloudflare Workers (cron). Без ИИ.
    ENV: TELEGRAM_BOT_TOKEN, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, WEBHOOK_SECRET, DEFAULT_TIMEZONE */
 
