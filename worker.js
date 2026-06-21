@@ -696,3 +696,39 @@ async function processUpdate(env,update){
     try{ await answer(env,cq.id); }catch{}
   }
 }
+/* ───────── НАДСТРОЙКА: меню + редактирование задач ───────── */
+(() => {
+  // кнопка «Меню» на экране выбора типа
+  askType = async function(env, ctx, data, isNew){
+    await setState(env, ctx.uid, 'task:type', data);
+    const rows = []; let r = [];
+    for (const ty of TASK_TYPES){ r.push(btn(ty===data.type?`• ${ty} •`:ty, `tw:type:${ty}`)); if(r.length===3){ rows.push(r); r=[]; } }
+    if (r.length) rows.push(r);
+    rows.push([btn('🏠 Меню','nav:menu')]);
+    const txt = Задача: <b>${esc(data.title)}</b>\nТип (предложен «${data.type}», можно поменять):;
+    if (isNew && !ctx.msgId) await send(env, ctx.chatId, txt, ikb(rows)); else await screen(env, ctx, txt, ikb(rows));
+  };
+
+  // слова-выходы в меню в любой момент
+  const _ht = handleText;
+  handleText = async function(env, ctx, text){
+    const low = (text||'').trim().toLowerCase();
+    if (['меню','menu','отмена','cancel','стоп','назад'].includes(low)){ await clearState(env, ctx.uid); return showMenu(env, ctx); }
+    return _ht(env, ctx, text);
+  };
+
+  // кнопка «Редактировать задачи» в главном меню
+  const _mm = mainMenuKb;
+  mainMenuKb = function(){
+    const kb = _mm();
+    kb.inline_keyboard.splice(3, 0, [btn('✏️ Редактировать задачи','task:all')]);
+    return kb;
+  };
+
+  // экран со ВСЕМИ активными задачами (в т.ч. без даты/времени)
+  async function taskAllList(env, ctx){
+    const dated = await dbSelect(env,'eb1_tasks',`telegram_user_id=eq.${ctx.uid}&archived=eq.false&status=neq.done&due_date=not.is.null&select=id,title,due_date,due_hour&order=due_date.asc,due_hour.asc`);
+    const noDate = await dbSelect(env,'eb1_tasks',`telegram_user_id=eq.${ctx.uid}&archived=eq.false&status=neq.done&due_date=is.null&select=id,title&order=created_at.desc`);
+    let t = '✏️ <b>Все задачи</b>\nНажми на задачу, чтобы изменить время, дату или удалить.\n'; const kb = [];
+    for (const x of (dated||[])){ const tm = x.due_hour!=null?`${String(x.due_hour).padStart(2,'0')}:00`:'—'; kb.push([btn(`${fmtShort(x.due_date)} ${tm} ${x.title}`.slice(0,60), `task:open:${x.id}`)]); }
+    for (const x of (noDate||[])){ kb.push([btn(`без срока — ${
