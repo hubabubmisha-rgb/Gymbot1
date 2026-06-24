@@ -2177,3 +2177,15 @@ handleText = async function(env, ctx, text){
   return _xPrevHT(env, ctx, text);
 };
 /* ===== КОНЕЦ НАДСТРОЙКИ v4 ===== */
+/* ===== НАДСТРОЙКА v5: безвременные задачи на главный экран ===== */
+/* phone-safe: без запретных символов */
+var _xHomePrev = buildHome;
+buildHome = async function(env, uid, tz){
+  var r = await _xHomePrev(env, uid, tz);
+  var bz = _or(await dbSelect(env, 'eb1_tasks', 'telegram_user_id=eq.' + uid + '&kind=eq.timeless&archived=eq.false&status=neq.done&select=title&order=created_at.desc&limit=15'), function(){ return []; });
+  var add = '\n\n♾️ <b>Безвременные:</b>\n';
+  if (bz.length) { for (var i = 0; i < bz.length; i++) add += '• ' + esc(bz[i].title) + '\n'; }
+  else add += '<i>нет</i>\n';
+  return { text: r.text + add, kb: r.kb };
+};
+/* ===== КОНЕЦ НАДСТРОЙКИ v5 ===== */
