@@ -2024,3 +2024,156 @@ async function processUpdate(env, update) {
     } catch {}
   }
 }
+/* ===== НАДСТРОЙКА v4: разделы задач, карточка, фото-обложка ===== */
+/* phone-safe: без запретных символов */
+
+function _pad2(n){ n = String(n); return n.length < 2 ? ('0' + n) : n; }
+function _createdRu(iso, tz){ try { return new Intl.DateTimeFormat('ru-RU', { timeZone: tz, day: 'numeric', month: 'long' }).format(new Date(iso)); } catch (e) { return ''; } }
+function _lastNotes(notes){ var m = {}; for (var i = 0; i < notes.length; i++) { m[notes[i].task_id] = notes[i].text; } return m; }
+
+/* ----- Обзор раздела (Временные/Безвременные) ----- */
+async function xSectionView(env, ctx, kind){
+  var isTimed = kind === 'timed';
+  var uid = ctx.uid, tz = ctx.user.tz, now = Date.now();
+  var tasks = _or(await dbSelect(env, 'eb1_tasks', 'telegram_user_id=eq.' + uid + '&kind=eq.' + kind + '&archived=eq.false&status=neq.done&select=id,title,folder_id,due_date,due_hour,created_at&order=created_at.desc'), function(){ return []; });
+  if (isTimed) tasks = tasks.filter(function(x){ var dl = taskDeadlineUtc(x, tz); return dl && dl.getTime() >= now; });
+  var folders = _or(await dbSelect(env, 'eb1_folders', 'telegram_user_id=eq.' + uid + '&kind=eq.' + kind + '&select=id,name&order=name.asc'), function(){ return []; });
+  var notes = _or(await dbSelect(env, 'eb1_task_notes', 'telegram_user_id=eq.' + uid + '&select=task_id,text,created_at&order=created_at.asc'), function(){ return []; });
+  var last = _lastNotes(notes);
+  function line(x){ var s = '• ' + esc(x.title); if (last[x.id]) s += '\n<i>' + esc(last[x.id]) + '</i>'; return s; }
+
+  var t = (isTimed ? '⏰ <b>Временные задачи</b>' : '♾️ <b>Безвременные задачи</b>') + '\n\n<b>Основные:</b>\n';
+  var main = tasks.filter(function(x){ return !x.folder_id; });
+  if (main.length) { for (var i = 0; i < main.length; i++) t += line(main[i]) + '\n'; } else t += '<i>пусто</i>\n';
+  for (var f = 0; f < folders.length; f++) {
+    var fl = folders[f];
+    var inF = tasks.filter(function(x){ return x.folder_id === fl.id; });
+    t += '\n<b>' + esc(fl.name) + ':</b>\n';
+    if (inF.length) { for (var j = 0; j < inF.length; j++) t += line(inF[j]) + '\n'; } else t += '<i>пусто</i>\n';
+  }
+
+  var kc = isTimed ? 't' : 'z';
+  var kb = [];
+  kb.push([btn('➕ Создать задачу', 'xmk:' + kc), btn('✏️ Редактировать задачи', 'xed:' + kc)]);
+  kb.push([btn('📁 Основные', 'xfo:' + kc + ':main')]);
+  var row = [];
+  for (var f2 = 0; f2 < folders.length; f2++) { row.push(btn('📁 ' + folders[f2].name, 'xfo:' + kc + ':' + folders[f2].id)); if (row.length === 2) { kb.push(row); row = []; } }
+  if (row.length) kb.push(row);
+  kb.push([btn('🗂 Редактировать папки', isTimed ? 'fold:m:timed' : 'fold:m:timeless')]);
+  if (isTimed) {
+    var allT = _or(await dbSelect(env, 'eb1_tasks', 'telegram_user_id=eq.' + uid + '&kind=eq.timed&archived=eq.false&status=neq.done&select=id,due_date,due_hour'), function(){ return []; });
+    var odc = 0; for (var k = 0; k < allT.length; k++) { var dl2 = taskDeadlineUtc(allT[k], tz); if (dl2 && dl2.getTime() < now) odc++; }
+    kb.push([btn('📛 Просроченные (' + odc + ')', 'tt:overdue')]);
+  }
+  kb.push([btn('🏠 Меню', 'nav:menu')]);
+  await screen(env, ctx, t, ikb(kb));
+}
+timedMenu = async function(env, ctx){ return xSectionView(env, ctx, 'timed'); };
+timelessMenu = async function(env, ctx){ return xSectionView(env, ctx, 'timeless'); };
+
+/* ----- Открытие папки: задачи кнопками ----- */
+async function xFolderOpen(env, ctx, kc, fid){
+  var kind = kc === 't' ? 'timed' : 'timeless', isTimed = kind === 'timed', uid = ctx.uid, tz = ctx.user.tz, now = Date.now();
+  var q = 'telegram_user_id=eq.' + uid + '&kind=eq.' + kind + '&archived=eq.false&status=neq.done&select=id,title,due_date,due_hour&order=created_at.desc';
+  q += (fid === 'main') ? '&folder_id=is.null' : ('&folder_id=eq.' + fid);
+  var tasks = _or(await dbSelect(env, 'eb1_tasks', q), function(){ return []; });
+  if (isTimed) tasks = tasks.filter(function(x){ var dl = taskDeadlineUtc(x, tz); return dl && dl.getTime() >= now; });
+  var name = 'Основные';
+  if (fid !== 'main') { var fl = await dbOne(env, 'eb1_folders', 'id=eq.' + fid + '&select=name'); if (fl) name = fl.name; }
+  var t = '📁 <b>' + esc(name) + '</b>\n';
+  var kb = [];
+  if (tasks.length) { for (var i = 0; i < tasks.length; i++) { var x = tasks[i]; var lbl = (isTimed && x.due_date) ? (fmtShort(x.due_date) + ' ' + x.title) : x.title; kb.push([btn(lbl.slice(0, 60), 'task:open:' + x.id)]); } }
+  else t += '\n<i>нет задач</i>';
+  kb.push([btn('⬅️ Назад', isTimed ? 'tt:menu' : 'bz:menu'), btn('🏠 Меню', 'nav:menu')]);
+  await screen(env, ctx, t, ikb(kb));
+}
+
+/* ----- Редактировать задачи: переименовать/удалить ----- */
+async function xEditList(env, ctx, kc){
+  var kind = kc === 't' ? 'timed' : 'timeless', uid = ctx.uid;
+  var tasks = _or(await dbSelect(env, 'eb1_tasks', 'telegram_user_id=eq.' + uid + '&kind=eq.' + kind + '&archived=eq.false&status=neq.done&select=id,title&order=created_at.desc'), function(){ return []; });
+  var t = '✏️ <b>Редактировать задачи</b>';
+  var kb = [];
+  for (var i = 0; i < tasks.length; i++) { var x = tasks[i]; kb.push([btn('✏️ ' + x.title.slice(0, 28), 'task:ren:' + x.id), btn('🗑', 'task:del:' + x.id)]); }
+  if (!tasks.length) t += '\n\n<i>нет задач</i>';
+  kb.push([btn('⬅️ Назад', kind === 'timed' ? 'tt:menu' : 'bz:menu'), btn('🏠 Меню', 'nav:menu')]);
+  await screen(env, ctx, t, ikb(kb));
+}
+
+/* ----- Все фото альбомом ----- */
+async function xAllPhotos(env, ctx, id){
+  var photos = _or(await dbSelect(env, 'eb1_task_photos', 'task_id=eq.' + id + '&select=file_id&order=id.asc'), function(){ return []; });
+  if (!photos.length) return answer(env, ctx.cbId, 'Нет фото');
+  try {
+    if (photos.length === 1) await tg(env, 'sendPhoto', { chat_id: ctx.chatId, photo: photos[0].file_id });
+    else await tg(env, 'sendMediaGroup', { chat_id: ctx.chatId, media: photos.slice(0, 10).map(function(p){ return { type: 'photo', media: p.file_id }; }) });
+  } catch (e) { console.log('allphotos', e.message); }
+  return answer(env, ctx.cbId);
+}
+
+/* ----- Карточка задачи (новый формат + фото-обложка с подписью и кнопками) ----- */
+taskOpen = async function(env, ctx, id){
+  var x = await dbOne(env, 'eb1_tasks', 'telegram_user_id=eq.' + ctx.uid + '&id=eq.' + id);
+  if (!x) return showMenu(env, ctx);
+  var tz = ctx.user.tz;
+  var notes = _or(await dbSelect(env, 'eb1_task_notes', 'task_id=eq.' + id + '&select=text,created_at&order=created_at.asc'), function(){ return []; });
+  var photos = _or(await dbSelect(env, 'eb1_task_photos', 'task_id=eq.' + id + '&select=file_id&order=id.asc'), function(){ return []; });
+
+  var t = '';
+  if (x.kind === 'timed') {
+    var dl = '—';
+    if (x.due_date) { dl = fmtDate(x.due_date); if (x.due_hour != null) dl += ' ' + _pad2(x.due_hour) + ':00'; }
+    t += '🕒 <b>Срок:</b> ' + dl + '\n<b>' + esc(x.title) + '</b>\n';
+  } else {
+    t += '<b>' + esc(x.title) + '</b>\n';
+  }
+  if (notes.length) { t += '\n'; for (var i = 0; i < notes.length; i++) t += esc(notes[i].text) + '\n<i>' + fmtTs(new Date(notes[i].created_at), tz) + '</i>\n'; }
+  if (x.kind !== 'timed') t += '\nСоздана ' + _createdRu(x.created_at, tz);
+
+  var kb = [];
+  kb.push([btn('✅ Выполнено', 'task:done:' + id), btn('📝 Заметка', 'task:note:' + id)]);
+  if (x.kind === 'timed') kb.push([btn('📅 Перенести', 'task:move:' + id), btn('🔔 Напоминания', 'task:rem:' + id)]);
+  var prow = [btn('📷 Добавить фото', 'task:photo:' + id)];
+  if (photos.length) prow.push(btn('🗑 Фото (' + photos.length + ')', 'task:photos:' + id));
+  kb.push(prow);
+  if (photos.length > 1) kb.push([btn('🖼 Все фото (' + photos.length + ')', 'xallphotos:' + id)]);
+  kb.push([btn('✏️ Изменить', 'task:edit:' + id), btn('🗑 Удалить', 'task:del:' + id)]);
+  kb.push(navRow('nav:menu'));
+  var markup = ikb(kb);
+
+  if (photos.length) {
+    if (ctx.msgId) { try { await tg(env, 'deleteMessage', { chat_id: ctx.chatId, message_id: ctx.msgId }); } catch (e) {} }
+    var cap = t.length > 1000 ? (t.slice(0, 1000) + '…') : t;
+    try { await tg(env, 'sendPhoto', { chat_id: ctx.chatId, photo: photos[0].file_id, caption: cap, parse_mode: 'HTML', reply_markup: markup }); }
+    catch (e) { console.log('cardphoto', e.message); await send(env, ctx.chatId, t, markup); }
+  } else {
+    await screen(env, ctx, t, markup);
+  }
+};
+
+/* ----- Роутер: новые префиксы ----- */
+var _xPrevCb = handleCallback;
+handleCallback = async function(env, ctx, data){
+  var p = data.split(':');
+  if (p[0] === 'xfo') return xFolderOpen(env, ctx, p[1], p[2]);
+  if (p[0] === 'xed') return xEditList(env, ctx, p[1]);
+  if (p[0] === 'xallphotos') return xAllPhotos(env, ctx, p[1]);
+  if (p[0] === 'xmk') { var kind = p[1] === 't' ? 'timed' : 'timeless'; await setState(env, ctx.uid, 'x:newtitle', { kind: kind }); return send(env, ctx.chatId, 'Напиши название задачи:'); }
+  return _xPrevCb(env, ctx, data);
+};
+
+/* ----- Текст: название для «Создать задачу» ----- */
+var _xPrevHT = handleText;
+handleText = async function(env, ctx, text){
+  var st = await getState(env, ctx.uid);
+  if (st.state === 'x:newtitle') {
+    var title = text.trim(), low = title.toLowerCase();
+    if (['меню', 'menu', 'отмена', 'cancel', 'стоп', 'назад'].indexOf(low) >= 0) { await clearState(env, ctx.uid); return showMenu(env, ctx); }
+    var kind = (st.data && st.data.kind) ? st.data.kind : 'timeless';
+    await clearState(env, ctx.uid);
+    if (kind === 'timed') return wAskDate(env, ctx, { title: title, kind: 'timed' });
+    return wAskFolder(env, ctx, { title: title, kind: 'timeless' });
+  }
+  return _xPrevHT(env, ctx, text);
+};
+/* ===== КОНЕЦ НАДСТРОЙКИ v4 ===== */
