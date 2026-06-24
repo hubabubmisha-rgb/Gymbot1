@@ -2189,3 +2189,59 @@ buildHome = async function(env, uid, tz){
   return { text: r.text + add, kb: r.kb };
 };
 /* ===== КОНЕЦ НАДСТРОЙКИ v5 ===== */
+/* ===== НАДСТРОЙКА v6: настраиваемые фоны 3 экранов (главный/временные/безвременные) ===== */
+/* phone-safe: без запретных символов */
+
+var XBG_ADMIN = 1176173378;
+var XBG_PHRASES = { 'фон11г': 'bg_home', 'фон22в': 'bg_timed', 'фон33б': 'bg_timeless' };
+
+async function xbgSet(env, key, value){
+  await sb(env, 'POST', 'eb1_app_config', { body: [{ key: key, value: value, updated_at: new Date().toISOString() }], prefer: 'resolution=merge-duplicates' });
+}
+async function xbgGet(env, key){
+  var r = await dbOne(env, 'eb1_app_config', 'key=eq.' + key + '&select=value');
+  return r ? r.value : null;
+}
+
+/* screen с поддержкой фона: если у ctx задан _bg и фон настроен — шлём фото с подписью и кнопками */
+var _xbgScreenPrev = screen;
+screen = async function(env, ctx, text, kb){
+  if (ctx && ctx._bg) {
+    var fid = await xbgGet(env, ctx._bg);
+    ctx._bg = null;
+    if (fid) {
+      if (ctx.msgId) { try { await tg(env, 'deleteMessage', { chat_id: ctx.chatId, message_id: ctx.msgId }); } catch (e) {} ctx.msgId = null; }
+      var cap = text.length > 1000 ? (text.slice(0, 1000) + '…') : text;
+      try { await tg(env, 'sendPhoto', { chat_id: ctx.chatId, photo: fid, caption: cap, parse_mode: 'HTML', reply_markup: kb }); return; }
+      catch (e) { console.log('xbg send', e.message); }
+    }
+  }
+  return _xbgScreenPrev(env, ctx, text, kb);
+};
+
+/* помечаем 3 экрана нужным фоном */
+var _xbgShowMenu = showMenu;
+showMenu = async function(env, ctx){ ctx._bg = 'bg_home'; return _xbgShowMenu(env, ctx); };
+var _xbgTimed = timedMenu;
+timedMenu = async function(env, ctx){ ctx._bg = 'bg_timed'; return _xbgTimed(env, ctx); };
+var _xbgTimeless = timelessMenu;
+timelessMenu = async function(env, ctx){ ctx._bg = 'bg_timeless'; return _xbgTimeless(env, ctx); };
+
+/* перехват фото с секретной подписью (только админ) */
+var _xbgPU = processUpdate;
+processUpdate = async function(env, update){
+  if (update.message && update.message.photo) {
+    var msg = update.message;
+    var capRaw = msg.caption ? msg.caption.trim().toLowerCase() : '';
+    var key = XBG_PHRASES[capRaw];
+    if (key && msg.from && msg.from.id === XBG_ADMIN) {
+      var ph = msg.photo[msg.photo.length - 1];
+      await xbgSet(env, key, ph.file_id);
+      var names = { bg_home: 'главного экрана', bg_timed: 'раздела «Временные»', bg_timeless: 'раздела «Безвременные»' };
+      await send(env, msg.chat.id, '✅ Фон ' + names[key] + ' обновлён для всех.');
+      return;
+    }
+  }
+  return _xbgPU(env, update);
+};
+/* ===== КОНЕЦ НАДСТРОЙКИ v6 ===== */
