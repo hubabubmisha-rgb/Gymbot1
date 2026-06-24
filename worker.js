@@ -2245,3 +2245,26 @@ processUpdate = async function(env, update){
   return _xbgPU(env, update);
 };
 /* ===== КОНЕЦ НАДСТРОЙКИ v6 ===== */
+/* ===== НАДСТРОЙКА v7: безвременные на главном экране — группировка по папкам ===== */
+/* phone-safe: без запретных символов */
+var _xHome7 = buildHome;
+buildHome = async function(env, uid, tz){
+  var r = await _xHome7(env, uid, tz);
+  var marker = '♾️ <b>Безвременные:</b>';
+  var idx = r.text.indexOf(marker);
+  var head = idx >= 0 ? r.text.slice(0, idx) : (r.text + '\n\n');
+  var tasks = _or(await dbSelect(env, 'eb1_tasks', 'telegram_user_id=eq.' + uid + '&kind=eq.timeless&archived=eq.false&status=neq.done&select=id,title,folder_id&order=created_at.desc'), function(){ return []; });
+  var folders = _or(await dbSelect(env, 'eb1_folders', 'telegram_user_id=eq.' + uid + '&kind=eq.timeless&select=id,name&order=name.asc'), function(){ return []; });
+  var add = marker + '\n';
+  if (!tasks.length) { add += '<i>нет</i>\n'; return { text: head + add, kb: r.kb }; }
+  var main = tasks.filter(function(x){ return !x.folder_id; });
+  for (var i = 0; i < main.length; i++) add += '• ' + esc(main[i].title) + '\n';
+  for (var f = 0; f < folders.length; f++) {
+    var inF = tasks.filter(function(x){ return x.folder_id === folders[f].id; });
+    if (!inF.length) continue;
+    add += '<b>' + esc(folders[f].name) + ':</b>\n';
+    for (var j = 0; j < inF.length; j++) add += '• ' + esc(inF[j].title) + '\n';
+  }
+  return { text: head + add, kb: r.kb };
+};
+/* ===== КОНЕЦ НАДСТРОЙКИ v7 ===== */
